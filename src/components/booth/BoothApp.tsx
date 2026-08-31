@@ -1,0 +1,335 @@
+import { useCallback, useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import { AppHeader } from "@/components/booth/AppHeader";
+import { CameraStage } from "@/components/booth/CameraStage";
+import { GalleryRail } from "@/components/booth/GalleryRail";
+import { LayoutPicker } from "@/components/booth/LayoutPicker";
+import { OrderPane } from "@/components/booth/OrderPane";
+import { ReviewPane } from "@/components/booth/ReviewPane";
+import { compressDataUrl, downloadDataUrl } from "@/lib/compose";
+import type { FilterId } from "@/lib/filters";
+import {
+  BOOTH_LAYOUTS,
+  INSTANT_LAYOUTS,
+  SALON_LAYOUTS,
+  type Layout,
+  type LayoutId,
+} from "@/lib/layouts";
+import { useGallery } from "@/lib/gallery-store";
+import { EXTRA_AFTER, EXTRA_STEP_RUB, PRINT_PRICE_RUB, SHIPPING_PRICE_RUB } from "@/lib/pricing";
+import { formatRub } from "@/lib/utils";
+
+type Step = "home" | "shoot" | "review" | "order" | "done";
+
+export function HomeHub() {
+  return (
+    <Shell>
+      <section className="max-w-2xl pb-10 pt-2">
+        <p className="text-xs uppercase tracking-caps text-fg-subtle">
+          Классическая фотобудка
+        </p>
+        <h1 className="mt-3 font-display text-4xl leading-tight tracking-tight sm:text-6xl">
+          Зайдите за занавес.
+        </h1>
+        <p className="mt-4 max-w-xl text-base leading-relaxed text-fg-muted">
+          Два раздела: ленточки из будки и печать Polaroid, Instax или
+          фотосалона до А3. Готовые карточки — в личном кабинете.
+        </p>
+      </section>
+      <div className="grid gap-4 md:grid-cols-2">
+        <HubCard
+          to="/booth"
+          kicker="Раздел 1"
+          title="Фотобудка"
+          body="Классическая ленточка: три или четыре кадра, как из автомата. Печать от 49 ₽, доставка 29 ₽."
+        />
+        <HubCard
+          to="/print"
+          kicker="Раздел 2"
+          title="Печать"
+          body="Polaroid, Instax Mini / Square / Wide и размеры фотосалона — 10×15 до А3."
+        />
+      </div>
+      <GalleryRail />
+    </Shell>
+  );
+}
+
+function HubCard({
+  to,
+  kicker,
+  title,
+  body,
+}: {
+  to: "/booth" | "/print";
+  kicker: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="group rounded-2xl bg-bg-elevated p-6 shadow-[var(--shadow-border)] transition-[transform,background-color] duration-150 hover:bg-bg-subtle active:scale-95"
+    >
+      <p className="text-xs uppercase tracking-caps text-fg-subtle">{kicker}</p>
+      <h2 className="mt-2 font-display text-3xl tracking-tight">{title}</h2>
+      <p className="mt-3 text-sm leading-relaxed text-fg-muted">{body}</p>
+      <span className="mt-6 inline-block text-sm text-paper">Открыть →</span>
+    </Link>
+  );
+}
+
+export function BoothSession() {
+  return (
+    <SessionFlow
+      layouts={BOOTH_LAYOUTS}
+      kicker="Фотобудка"
+      title="Ленточка из автомата"
+      blurb={`Три или четыре кадра, как из классической будки. Печать ${formatRub(PRINT_PRICE_RUB)} за копию, с шестой +${EXTRA_STEP_RUB} ₽. Доставка ${formatRub(SHIPPING_PRICE_RUB)}.`}
+    />
+  );
+}
+
+export function PrintSession() {
+  return (
+    <SessionFlow
+      layouts={[...INSTANT_LAYOUTS, ...SALON_LAYOUTS]}
+      kicker="Печать"
+      title="Instax, Polaroid и салон"
+      blurb={`Мгновенная плёнка — ${formatRub(PRINT_PRICE_RUB)} за кадр, первые ${EXTRA_AFTER} по этой цене, дальше +${EXTRA_STEP_RUB} ₽. Салон — по размеру, до А3. Доставка ${formatRub(SHIPPING_PRICE_RUB)}.`}
+      groups
+    />
+  );
+}
+
+function SessionFlow({
+  layouts,
+  kicker,
+  title,
+  blurb,
+  groups = false,
+}: {
+  layouts: Layout[];
+  kicker: string;
+  title: string;
+  blurb: string;
+  groups?: boolean;
+}) {
+  const [step, setStep] = useState<Step>("home");
+  const [layoutId, setLayoutId] = useState<LayoutId | null>(null);
+  const [shots, setShots] = useState<Array<string | null>>([]);
+  const [filterId, setFilterId] = useState<FilterId>("none");
+  const [composite, setComposite] = useState<string | null>(null);
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [orderTotalValue, setOrderTotalValue] = useState<number | null>(null);
+  const addToGallery = useGallery((s) => s.add);
+  const markOrdered = useGallery((s) => s.markOrdered);
+  const [galleryId, setGalleryId] = useState<string | null>(null);
+
+  const layout = layoutId ? layouts.find((l) => l.id === layoutId) ?? null : null;
+
+  const pickLayout = (next: Layout) => {
+    setLayoutId(next.id);
+    setShots(Array.from({ length: next.poses }, () => null));
+    setComposite(null);
+    setOrderNumber(null);
+    setStep("shoot");
+  };
+
+  const handleComposite = useCallback(async (url: string) => {
+    setComposite(url);
+    if (!layoutId) return;
+    const thumb = await compressDataUrl(url, 720, 0.72);
+    const id = galleryId ?? `g-${Date.now()}`;
+    if (!galleryId) setGalleryId(id);
+    addToGallery({
+      id,
+      layoutId,
+      filterId,
+      composite: thumb,
+    });
+  }, [addToGallery, filterId, galleryId, layoutId]);
+
+  function retakeSlot(index: number) {
+    setShots((prev) => {
+      const next = [...prev];
+      next[index] = null;
+      return next;
+    });
+    setStep("shoot");
+  }
+
+  function retakeAll() {
+    if (!layout) return;
+    setShots(Array.from({ length: layout.poses }, () => null));
+    setComposite(null);
+    setGalleryId(null);
+    setStep("shoot");
+  }
+
+  function resetHome() {
+    setStep("home");
+    setLayoutId(null);
+    setShots([]);
+    setComposite(null);
+    setOrderNumber(null);
+    setGalleryId(null);
+    setFilterId("none");
+  }
+
+  return (
+    <Shell>
+      {step === "home" && (
+        <div className="flex flex-col">
+          <section className="max-w-2xl pb-8 pt-2">
+            <p className="text-xs uppercase tracking-caps text-fg-subtle">{kicker}</p>
+            <h1 className="mt-3 font-display text-4xl leading-tight tracking-tight sm:text-5xl">
+              {title}
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-fg-muted">{blurb}</p>
+          </section>
+          {groups ? (
+            <>
+              <h2 className="mb-3 font-display text-2xl tracking-tight">Polaroid и Instax</h2>
+              <LayoutPicker
+                layouts={layouts.filter((l) => l.kind === "instant")}
+                selectedId={layoutId}
+                onSelect={pickLayout}
+              />
+              <h2 className="mb-3 mt-10 font-display text-2xl tracking-tight">Фотосалон до А3</h2>
+              <LayoutPicker
+                layouts={layouts.filter((l) => l.kind === "salon")}
+                selectedId={layoutId}
+                onSelect={pickLayout}
+              />
+            </>
+          ) : (
+            <>
+              <h2 className="mb-3 font-display text-2xl tracking-tight">Выберите ленточку</h2>
+              <LayoutPicker layouts={layouts} selectedId={layoutId} onSelect={pickLayout} />
+            </>
+          )}
+          <GalleryRail />
+        </div>
+      )}
+
+      {step === "shoot" && layout && (
+        <CameraStage
+          layout={layout}
+          shots={shots}
+          onShots={setShots}
+          filterId={filterId}
+          onFilter={setFilterId}
+          onBack={resetHome}
+          onComplete={() => setStep("review")}
+        />
+      )}
+
+      {step === "review" && layout && (
+        <ReviewPane
+          layout={layout}
+          shots={shots}
+          filterId={filterId}
+          onFilter={setFilterId}
+          onRetakeSlot={retakeSlot}
+          onRetakeAll={retakeAll}
+          onOrder={() => setStep("order")}
+          onComposite={(url) => void handleComposite(url)}
+        />
+      )}
+
+      {step === "order" && layout && (
+        <OrderPane
+          layout={layout}
+          shots={shots}
+          composite={composite}
+          filterId={filterId}
+          onBack={() => setStep("review")}
+          onDone={(num, total) => {
+            setOrderNumber(num);
+            setOrderTotalValue(total);
+            if (galleryId) markOrdered(galleryId, num);
+            setStep("done");
+          }}
+        />
+      )}
+
+      {step === "done" && orderNumber && (
+        <SuccessPane
+          orderNumber={orderNumber}
+          total={orderTotalValue ?? 0}
+          composite={composite}
+          onAgain={resetHome}
+        />
+      )}
+    </Shell>
+  );
+}
+
+function Shell({ children }: { children: ReactNode }) {
+  return <PageFrame>{children}</PageFrame>;
+}
+
+export function PageFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative min-h-dvh bg-bg text-fg">
+      <div className="booth-curtain absolute inset-y-0 left-0 w-8 sm:w-12" />
+      <div className="booth-curtain absolute inset-y-0 right-0 w-8 sm:w-12" />
+      <div className="booth-grain absolute inset-0" />
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-8 px-10 pb-16 pt-5 sm:px-16">
+        <AppHeader />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SuccessPane({
+  orderNumber,
+  total,
+  composite,
+  onAgain,
+}: {
+  orderNumber: string;
+  total: number;
+  composite: string | null;
+  onAgain: () => void;
+}) {
+  return (
+    <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-6 py-8 text-center">
+      <p className="text-xs uppercase tracking-caps text-fg-subtle">Заказ принят</p>
+      <h2 className="font-display text-4xl tracking-tight">Спасибо</h2>
+      <p className="font-display text-6xl tabular-nums tracking-tight text-paper">
+        №{orderNumber}
+      </p>
+      <p className="max-w-md text-sm leading-relaxed text-fg-muted">
+        Макет, адрес и кадры ушли в студию. Распечатаем и отправим Почтой России. Сумма{" "}
+        {formatRub(total)}.
+      </p>
+      {composite && (
+        <img
+          src={composite}
+          alt=""
+          className="max-h-80 w-full bg-paper object-contain"
+        />
+      )}
+      <div className="flex flex-wrap justify-center gap-2">
+        {composite && (
+          <Button
+            variant="outline"
+            onClick={() =>
+              downloadDataUrl(composite, `inc-soul-${orderNumber}.jpg`)
+            }
+          >
+            Скачать макет
+          </Button>
+        )}
+        <Button onClick={onAgain}>Снять ещё</Button>
+        <Button variant="ghost" asChild>
+          <Link to="/cabinet">В кабинет</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
