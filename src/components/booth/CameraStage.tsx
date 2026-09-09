@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import {
   CameraOff,
   ImagePlus,
@@ -22,6 +24,7 @@ export function CameraStage({
   onFilter,
   onBack,
   onComplete,
+  backLabel = "Назад к макетам",
 }: {
   layout: Layout;
   shots: Array<string | null>;
@@ -30,6 +33,7 @@ export function CameraStage({
   onFilter: (id: FilterId) => void;
   onBack: () => void;
   onComplete: () => void;
+  backLabel?: string;
 }) {
   const camera = useCamera();
   const [count, setCount] = useState<number | null>(null);
@@ -40,12 +44,17 @@ export function CameraStage({
   const completedRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const shotsRef = useRef(shots);
+  const retakingRef = useRef(layout.poses > 1 && shots.filter(Boolean).length === layout.poses - 1);
   shotsRef.current = shots;
 
   const filled = shots.filter(Boolean).length;
   const nextIndex = shots.findIndex((s) => !s);
   const done = filled >= layout.poses;
   const live = camera.status === "ready";
+  const slot = layout.slots.find((s) => s.type === "photo" && s.i === nextIndex);
+  const previewAspect = layout.id === "S3" && slot
+    ? (slot.w * layout.width) / (slot.h * layout.height)
+    : 16 / 9;
 
   useEffect(() => {
     void camera.start("user");
@@ -69,7 +78,7 @@ export function CameraStage({
     }
     const timer = window.setTimeout(() => {
       setCount((c) => (c === null ? null : c - 1));
-    }, 780);
+    }, 1000);
     return () => window.clearTimeout(timer);
   }, [count]);
 
@@ -84,6 +93,11 @@ export function CameraStage({
     if (takingRef.current) return;
     const video = camera.videoRef.current;
     if (!video || camera.status !== "ready") return;
+    if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
+      autoRef.current = false;
+      toast.error("Камера ещё готовится. Повторите снимок.");
+      return;
+    }
     takingRef.current = true;
     setBusy(true);
     setFlash(true);
@@ -96,6 +110,9 @@ export function CameraStage({
         next[idx] = frame;
         onShots(next);
       }
+    } catch {
+      autoRef.current = false;
+      toast.error("Не удалось снять кадр. Повторите попытку.");
     } finally {
       window.setTimeout(() => setFlash(false), 360);
       takingRef.current = false;
@@ -137,19 +154,19 @@ export function CameraStage({
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <Button variant="ghost" onClick={onBack}>
-          Назад к макетам
+          {backLabel}
         </Button>
         <p className="text-sm text-fg-muted">
           Макет {layout.id}
           <span className="tabular-nums text-fg">
             {" "}
-            · кадр {Math.min(filled + 1, layout.poses)} из {layout.poses}
+            · кадр {nextIndex === -1 ? layout.poses : nextIndex + 1} из {layout.poses}
           </span>
         </p>
       </div>
 
       <div className="overflow-hidden rounded-2xl bg-bg-elevated p-2 shadow-[var(--shadow-border)]">
-        <div className="relative aspect-video overflow-hidden rounded-xl bg-bg">
+        <div className="relative overflow-hidden rounded-xl bg-bg" style={{ aspectRatio: previewAspect }}>
           <video
             ref={camera.videoRef}
             className={cn(
@@ -171,9 +188,10 @@ export function CameraStage({
               <p className="font-display text-xl text-fg">{statusCopy[camera.status]}</p>
               <p className="max-w-sm text-sm text-fg-muted">{camera.message}</p>
               {camera.status !== "requesting" && (
-                <Button onClick={() => void camera.start()}>
-                  Включить камеру
-                </Button>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button onClick={() => void camera.start()}>Повторить</Button>
+                  <Button variant="ghost" asChild><Link to="/">На главную</Link></Button>
+                </div>
               )}
             </div>
           )}
@@ -205,12 +223,14 @@ export function CameraStage({
       </div>
 
       <FilterBar value={filterId} onChange={onFilter} />
+      {live && camera.message && <p role="status" className="text-center text-sm text-fg-muted">{camera.message}</p>}
 
       <div className="flex w-full flex-wrap items-center justify-center gap-2">
         {shots.map((shot, i) => (
           <button
             key={i}
             type="button"
+            disabled={retakingRef.current || count !== null || busy}
             onClick={() => {
               const next = [...shots];
               next[i] = null;
@@ -241,12 +261,13 @@ export function CameraStage({
           disabled={!live || done || count !== null || busy}
         >
           <Aperture className="size-5" />
-          {filled === 0 ? "Снять серию" : "Следующий кадр"}
+          {retakingRef.current ? `Переснять кадр ${nextIndex + 1}` : filled === 0 ? "Снять серию" : "Следующий кадр"}
         </Button>
         {camera.canSwitch && (
           <Button
             variant="outline"
             size="icon"
+            disabled={!live || count !== null || busy || autoRef.current}
             onClick={() => void camera.switchCamera()}
             aria-label="Переключить камеру"
           >
@@ -255,6 +276,7 @@ export function CameraStage({
         )}
         <Button
           variant="outline"
+          disabled={count !== null || busy || autoRef.current}
           onClick={() => fileRef.current?.click()}
         >
           <ImagePlus className="size-4" />

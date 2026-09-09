@@ -164,6 +164,7 @@ export function ReviewPane({
                 key={i}
                 type="button"
                 onClick={() => onRetakeSlot(i)}
+                aria-label={`Переснять кадр ${i + 1}`}
                 className="overflow-hidden rounded-md bg-bg-subtle shadow-[var(--shadow-border)]"
               >
                 {shot ? (
@@ -173,6 +174,7 @@ export function ReviewPane({
                     {i + 1}
                   </span>
                 )}
+                <span className="block px-1 py-2 text-xs text-fg">Переснять кадр {i + 1}</span>
               </button>
             ))}
           </div>

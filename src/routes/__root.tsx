@@ -12,7 +12,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      { name: "description", content: "Фотобудка inc&soul — ленточки, Polaroid, Instax и печать до А3 Почтой России." },
+      { name: "description", content: "Фотобудка inc&soul — три снимка в одной вертикальной ленточке. Фильтры, подпись и скачивание результата." },
       { name: "theme-color", content: "#6b1a22" },
     ],
     links: [

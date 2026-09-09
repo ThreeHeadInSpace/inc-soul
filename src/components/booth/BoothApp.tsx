@@ -1,5 +1,5 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/booth/AppHeader";
 import { CameraStage } from "@/components/booth/CameraStage";
@@ -22,6 +22,9 @@ import { formatRub } from "@/lib/utils";
 
 type Step = "home" | "shoot" | "review" | "order" | "done";
 
+const MVP_LAYOUT = BOOTH_LAYOUTS.find((layout) => layout.id === "S3")!;
+const MVP_LAYOUTS = [MVP_LAYOUT];
+
 export function HomeHub() {
   return (
     <Shell>
@@ -33,22 +36,16 @@ export function HomeHub() {
           Зайдите за занавес.
         </h1>
         <p className="mt-4 max-w-xl text-base leading-relaxed text-fg-muted">
-          Два раздела: ленточки из будки и печать Polaroid, Instax или
-          фотосалона до А3. Готовые карточки — в личном кабинете.
+          Три снимка — одна вертикальная ленточка, как из классической фотобудки.
+          Добавьте фильтр и подпись, затем скачайте результат.
         </p>
       </section>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid max-w-2xl gap-4">
         <HubCard
           to="/booth"
-          kicker="Раздел 1"
-          title="Фотобудка"
-          body="Классическая ленточка: три или четыре кадра, как из автомата. Печать от 49 ₽, доставка 29 ₽."
-        />
-        <HubCard
-          to="/print"
-          kicker="Раздел 2"
-          title="Печать"
-          body="Polaroid, Instax Mini / Square / Wide и размеры фотосалона — 10×15 до А3."
+          kicker="Три кадра"
+          title="Начать фотобудку"
+          body="Откройте камеру и снимите серию — мы соберём фотографии в ленточку."
         />
       </div>
       <GalleryRail />
@@ -83,10 +80,11 @@ function HubCard({
 export function BoothSession() {
   return (
     <SessionFlow
-      layouts={BOOTH_LAYOUTS}
+      layouts={MVP_LAYOUTS}
+      fixedLayout={MVP_LAYOUT}
       kicker="Фотобудка"
       title="Ленточка из автомата"
-      blurb={`Три или четыре кадра, как из классической будки. Печать ${formatRub(PRINT_PRICE_RUB)} за копию, с шестой +${EXTRA_STEP_RUB} ₽. Доставка ${formatRub(SHIPPING_PRICE_RUB)}.`}
+      blurb="Три снимка — одна вертикальная ленточка."
     />
   );
 }
@@ -109,16 +107,21 @@ function SessionFlow({
   title,
   blurb,
   groups = false,
+  fixedLayout,
 }: {
   layouts: Layout[];
   kicker: string;
   title: string;
   blurb: string;
   groups?: boolean;
+  fixedLayout?: Layout;
 }) {
-  const [step, setStep] = useState<Step>("home");
-  const [layoutId, setLayoutId] = useState<LayoutId | null>(null);
-  const [shots, setShots] = useState<Array<string | null>>([]);
+  const navigate = useNavigate();
+  const [step, setStep] = useState<Step>(fixedLayout ? "shoot" : "home");
+  const [layoutId, setLayoutId] = useState<LayoutId | null>(fixedLayout?.id ?? null);
+  const [shots, setShots] = useState<Array<string | null>>(() =>
+    Array.from({ length: fixedLayout?.poses ?? 0 }, () => null),
+  );
   const [filterId, setFilterId] = useState<FilterId>("none");
   const [composite, setComposite] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
@@ -169,9 +172,9 @@ function SessionFlow({
   }
 
   function resetHome() {
-    setStep("home");
-    setLayoutId(null);
-    setShots([]);
+    setStep(fixedLayout ? "shoot" : "home");
+    setLayoutId(fixedLayout?.id ?? null);
+    setShots(Array.from({ length: fixedLayout?.poses ?? 0 }, () => null));
     setComposite(null);
     setOrderNumber(null);
     setGalleryId(null);
@@ -180,7 +183,7 @@ function SessionFlow({
 
   return (
     <Shell>
-      {step === "home" && (
+      {step === "home" && !fixedLayout && (
         <div className="flex flex-col">
           <section className="max-w-2xl pb-8 pt-2">
             <p className="text-xs uppercase tracking-caps text-fg-subtle">{kicker}</p>
@@ -221,7 +224,8 @@ function SessionFlow({
           onShots={setShots}
           filterId={filterId}
           onFilter={setFilterId}
-          onBack={resetHome}
+          onBack={fixedLayout ? () => void navigate({ to: "/" }) : resetHome}
+          backLabel={fixedLayout ? "На главную" : "Назад к макетам"}
           onComplete={() => setStep("review")}
         />
       )}

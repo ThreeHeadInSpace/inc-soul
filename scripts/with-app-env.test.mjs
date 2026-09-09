@@ -11,11 +11,45 @@ import {
   parseAppEnv,
   projectRoot,
   readAppEnv,
+  resolveCommand,
 } from "./with-app-env.mjs";
 
 const execFileAsync = promisify(execFile);
 const WRAPPER = join(projectRoot(), "scripts/with-app-env.mjs");
 const PRINT_FLAG = "process.stdout.write(String(process.env.VITE_AUTH_ENABLED));";
+
+test("resolves a local Node binary by its bin name and preserves arguments", () => {
+  const root = makeWorkspace();
+  writeFileSync(join(root, "package.json"), JSON.stringify({
+    devDependencies: { "@fixture/tools": "1.0.0" },
+  }));
+  const packageDir = join(root, "node_modules", "@fixture", "tools");
+  mkdirSync(packageDir, { recursive: true });
+  writeFileSync(join(packageDir, "package.json"), JSON.stringify({
+    bin: { "fixture-cli": "cli.js" },
+  }));
+  const entry = join(packageDir, "cli.js");
+  writeFileSync(entry, "#!/usr/bin/env node\n");
+  const args = ["space in argument", "a&b", "$(literal)"];
+  assert.deepEqual(resolveCommand("fixture-cli", args, root), {
+    command: process.execPath,
+    args: [entry, ...args],
+  });
+  assert.deepEqual(resolveCommand("external-command", args, root), {
+    command: "external-command", args,
+  });
+});
+
+test("preserves explicit executable paths", () => {
+  assert.deepEqual(resolveCommand(process.execPath, ["--version"]), {
+    command: process.execPath, args: ["--version"],
+  });
+});
+
+test("the wrapper launches the installed Vite CLI without npm shell shims", async () => {
+  const { stdout } = await execFileAsync(process.execPath, [WRAPPER, "vite", "--version"]);
+  assert.match(stdout, /vite\/\d/);
+});
 
 function makeWorkspace(appEnvJson) {
   const root = mkdtempSync(join(tmpdir(), "app-env-"));

@@ -211,7 +211,9 @@ function tokenIdentityKey(token: string): string {
             .digest("base64url");
         }
       }
-    } catch {}
+    } catch {
+      // Malformed token payloads fall back to hashing the complete token below.
+    }
   }
   return createHash("sha256").update(token).digest("base64url");
 }

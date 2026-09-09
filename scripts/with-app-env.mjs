@@ -87,6 +87,39 @@ export function projectRoot() {
   return dirname(dirname(fileURLToPath(import.meta.url)));
 }
 
+/** Run declared local Node CLI entries directly, without platform-specific .cmd shims. */
+export function resolveCommand(command, args, root = projectRoot()) {
+  // Explicit executable paths (including process.execPath) retain their meaning.
+  if (command.includes("/") || command.includes("\\")) return { command, args };
+  const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const packages = Object.keys({
+    ...manifest.dependencies,
+    ...manifest.devDependencies,
+    ...manifest.optionalDependencies,
+  });
+  for (const name of packages) {
+    const packageDir = join(root, "node_modules", name);
+    let pkg;
+    try {
+      pkg = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8"));
+    } catch {
+      // Optional or uninstalled packages cannot supply a local executable.
+      continue;
+    }
+    const bins = typeof pkg.bin === "string"
+      ? { [name.split("/").pop()]: pkg.bin }
+      : pkg.bin;
+    const entry = bins?.[command];
+    if (typeof entry !== "string") continue;
+    const filename = join(packageDir, entry);
+    const firstLine = readFileSync(filename, "utf8").split(/\r?\n/, 1)[0];
+    if (/^#!.*\bnode(?:\s|$)/.test(firstLine)) {
+      return { command: process.execPath, args: [filename, ...args] };
+    }
+  }
+  return { command, args };
+}
+
 /**
  * Whether `moduleUrl` is the script node was asked to run.
  *
@@ -111,7 +144,8 @@ function main(argv) {
     process.exit(2);
   }
   const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
-  const child = spawn(command, args, { stdio: "inherit", env });
+  const resolved = resolveCommand(command, args);
+  const child = spawn(resolved.command, resolved.args, { stdio: "inherit", env });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => child.kill(signal));

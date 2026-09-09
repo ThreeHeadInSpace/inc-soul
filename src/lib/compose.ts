@@ -92,6 +92,7 @@ function drawBrand(
   h: number,
   meta: ComposeMeta,
   paper = PAPER,
+  isS3 = false,
 ) {
   ctx.save();
   ctx.fillStyle = paper;
@@ -123,7 +124,9 @@ function drawBrand(
     ctx.stroke();
   }
 
-  const dateSize = Math.max(9, Math.min(w, h) * 0.09);
+  // Canvas font sizes use CSS pixels: 5 pt = 5 * 96 / 72 px.
+  const sizeBoost = isS3 ? (5 * 96) / 72 : 0;
+  const dateSize = Math.max(9, Math.min(w, h) * 0.09) + sizeBoost;
   ctx.fillStyle = MUTED;
   ctx.font = `500 ${dateSize}px "Outfit", sans-serif`;
   const dateText = meta.dateLabel ?? "";
@@ -131,8 +134,8 @@ function drawBrand(
     ctx.fillText(dateText, x + w / 2, y + h * 0.7);
   }
 
-  const markSize = Math.max(8, Math.min(w, h) * 0.075);
-  ctx.fillStyle = QUIET;
+  const markSize = Math.max(8, Math.min(w, h) * 0.075) + sizeBoost;
+  ctx.fillStyle = isS3 ? "#333333" : QUIET;
   ctx.font = `${markSize}px "Great Vibes", cursive`;
   ctx.fillText("inc & soul", x + w / 2, y + h * 0.86);
   ctx.restore();
@@ -167,7 +170,7 @@ export async function composeLayout(
     const h = slot.h * canvas.height;
 
     if (slot.type === "brand") {
-      drawBrand(ctx, x, y, w, h, meta, paper);
+      drawBrand(ctx, x, y, w, h, meta, paper, layout.id === "S3");
       continue;
     }
 
