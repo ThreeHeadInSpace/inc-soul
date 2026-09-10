@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Download, FolderPlus, RotateCcw, Truck } from "lucide-react";
+import { Download, FolderPlus, RotateCcw, Truck, X } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,6 +113,36 @@ export function ReviewPane({
 
   const isS3 = layout.id === "S3";
   const SecondaryActions = isS3 ? "details" : "div";
+  const downloadButton = blobUrl ? (
+    <a
+      href={blobUrl}
+      download={filename}
+      className={cn(buttonVariants({ variant: isS3 ? "ghost" : "primary", size: "lg" }))}
+    >
+      <Download className="size-4" />
+      Скачать макет
+    </a>
+  ) : (
+    <Button variant={isS3 ? "ghost" : "primary"} size="lg" disabled>
+      <Download className="size-4" />
+      Скачать макет
+    </Button>
+  );
+  const orderButton = user ? (
+    <Button
+      className={isS3 ? "review-order" : undefined}
+      variant={isS3 ? "primary" : "ghost"}
+      onClick={onOrder}
+      disabled={!composite}
+    >
+      <Truck className="size-4" />
+      {isS3 ? "Заказать ленточку" : "Заказать печать"}
+    </Button>
+  ) : (
+    <Button className={isS3 ? "review-order" : undefined} variant={isS3 ? "primary" : "ghost"} asChild>
+      <Link to="/login">{isS3 ? "Заказать ленточку" : "Войти, чтобы заказать"}</Link>
+    </Button>
+  );
   const retakeButton = (
     <Button variant="ghost" onClick={onRetakeAll}>
       <RotateCcw className="size-4" />
@@ -130,7 +161,7 @@ export function ReviewPane({
             {layout.title}
           </h2>
           <p className="mt-1 text-sm text-fg-muted">
-            {layout.sizeLabel} · {layout.poseLabel}. Скачайте карточку или закажите печать.
+            {layout.sizeLabel} · {layout.poseLabel}. {isS3 ? "Ваша ленточка готова к печати." : "Скачайте карточку или закажите печать."}
           </p>
         </div>
         <p className="text-sm text-fg-muted">
@@ -141,7 +172,27 @@ export function ReviewPane({
       <div className="review-body grid items-start gap-6 lg:grid-cols-3">
         <div className="review-preview overflow-hidden rounded-2xl bg-bg-elevated p-3 shadow-[var(--shadow-border)] lg:col-span-2">
           <div className="review-paper flex min-h-72 items-center justify-center rounded-xl bg-paper p-4">
-            {composite ? (
+            {composite && isS3 ? (
+              <Dialog.Root>
+                <Dialog.Trigger asChild>
+                  <button type="button" className="review-enlarge" aria-label="Увеличить фотополоску">
+                    <img src={composite} alt={`Макет ${layout.id}`} className="review-strip" />
+                  </button>
+                </Dialog.Trigger>
+                <Dialog.Portal>
+                  <Dialog.Overlay className="fixed inset-0 z-50 bg-black/80" />
+                  <Dialog.Content className="strip-lightbox" aria-describedby={undefined}>
+                    <Dialog.Title className="sr-only">Увеличенный просмотр фотополоски</Dialog.Title>
+                    <Dialog.Close asChild>
+                      <Button variant="ghost" size="icon" className="self-end" aria-label="Закрыть просмотр">
+                        <X className="size-5" />
+                      </Button>
+                    </Dialog.Close>
+                    <img src={composite} alt="Фотополоска S3 целиком" className="strip-lightbox-image" />
+                  </Dialog.Content>
+                </Dialog.Portal>
+              </Dialog.Root>
+            ) : composite ? (
               <img
                 src={composite}
                 alt={`Макет ${layout.id}`}
@@ -188,24 +239,11 @@ export function ReviewPane({
             ))}
           </div>
           <div className="review-actions flex flex-col gap-2">
-            {blobUrl ? (
-              <a
-                href={blobUrl}
-                download={filename}
-                className={cn(buttonVariants({ variant: "primary", size: "lg" }))}
-              >
-                <Download className="size-4" />
-                Скачать макет
-              </a>
-            ) : (
-              <Button size="lg" disabled>
-                <Download className="size-4" />
-                Скачать макет
-              </Button>
-            )}
+            {isS3 ? orderButton : downloadButton}
             {isS3 && retakeButton}
             <SecondaryActions className={isS3 ? "review-secondary" : "contents"}>
-            {isS3 && <summary>Сохранить или заказать печать</summary>}
+            {isS3 && <summary>Скачать / сохранить</summary>}
+            {isS3 && downloadButton}
             {user ? (
               <Button
                 variant="outline"
@@ -220,16 +258,7 @@ export function ReviewPane({
                 <Link to="/login">Войти, чтобы сохранить</Link>
               </Button>
             )}
-            {user ? (
-              <Button variant="ghost" onClick={onOrder} disabled={!composite}>
-                <Truck className="size-4" />
-                Заказать печать
-              </Button>
-            ) : (
-              <Button variant="ghost" asChild>
-                <Link to="/login">Войти, чтобы заказать</Link>
-              </Button>
-            )}
+            {!isS3 && orderButton}
             </SecondaryActions>
             {!isS3 && retakeButton}
           </div>

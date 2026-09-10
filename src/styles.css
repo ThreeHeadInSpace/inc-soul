@@ -289,6 +289,47 @@
   object-fit: contain;
 }
 
+[data-booth-mode="workspace"] .review-enlarge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  cursor: zoom-in;
+}
+
+[data-booth-mode="workspace"] .review-enlarge:focus-visible {
+  outline: 2px solid var(--color-paper-ink);
+  outline-offset: 2px;
+}
+
+.strip-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  height: fit-content;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  color: var(--color-fg);
+}
+
+.strip-lightbox-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100dvh - 6rem);
+  object-fit: contain;
+}
+
 [data-booth-mode="workspace"] .review-caption input {
   /* Prevent Safari's automatic input zoom without disabling user zoom. */
   font-size: 1rem;
@@ -300,9 +341,10 @@
 
 [data-booth-mode="workspace"] .review-shots img,
 [data-booth-mode="workspace"] .review-shots button > span:first-child {
-  height: 2.5rem;
+  height: clamp(3.5rem, 8dvh, 5rem);
   width: 100%;
   aspect-ratio: auto;
+  object-fit: contain;
 }
 
 [data-booth-mode="workspace"] .review-shots button > span:last-child {
@@ -322,8 +364,12 @@
   font-size: 0.875rem;
 }
 
-[data-booth-mode="workspace"] .review-secondary {
+[data-booth-mode="workspace"] .review-order,
+[data-booth-mode="workspace"] .review-secondary[open] {
   grid-column: 1 / -1;
+}
+
+[data-booth-mode="workspace"] .review-secondary {
   min-width: 0;
 }
 
@@ -369,9 +415,6 @@
     overflow-x: visible;
   }
 
-  [data-booth-mode="workspace"] .review-shots img {
-    height: clamp(2.5rem, 8dvh, 5rem);
-  }
 }
 
 /* Short windows / the on-screen keyboard may scroll naturally. Nothing is
