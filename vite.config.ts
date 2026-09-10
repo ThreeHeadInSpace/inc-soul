@@ -11,6 +11,13 @@ import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
+import { version } from "./package.json";
+
+const appVersionLabel = `v${version}${
+  process.env.VERCEL_ENV === "preview" && process.env.VERCEL_GIT_COMMIT_REF === "pre-prod"
+    ? " · pre-prod"
+    : ""
+}`;
 
 /** The files `src/lib/db.ts` globs — same directory, same non-recursive scope. */
 function hasGlobbedMigrations(root: string): boolean {
@@ -146,6 +153,9 @@ function authPopupPlugin(): Plugin {
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
 export default defineConfig(({ command, isPreview }) => ({
+  define: {
+    "import.meta.env.VITE_APP_VERSION_LABEL": JSON.stringify(appVersionLabel),
+  },
   server: {
     host: "0.0.0.0",
     port: 8080,

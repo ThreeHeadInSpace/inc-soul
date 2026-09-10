@@ -110,9 +110,18 @@ export function ReviewPane({
     }
   }
 
+  const isS3 = layout.id === "S3";
+  const SecondaryActions = isS3 ? "details" : "div";
+  const retakeButton = (
+    <Button variant="ghost" onClick={onRetakeAll}>
+      <RotateCcw className="size-4" />
+      Снять заново
+    </Button>
+  );
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="review-stage mx-auto flex w-full max-w-5xl flex-col gap-6">
+      <div className="review-heading flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-caps text-fg-subtle">
             Предпросмотр
@@ -129,14 +138,14 @@ export function ReviewPane({
         </p>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-3">
-        <div className="overflow-hidden rounded-2xl bg-bg-elevated p-3 shadow-[var(--shadow-border)] lg:col-span-2">
-          <div className="flex min-h-72 items-center justify-center rounded-xl bg-paper p-4">
+      <div className="review-body grid items-start gap-6 lg:grid-cols-3">
+        <div className="review-preview overflow-hidden rounded-2xl bg-bg-elevated p-3 shadow-[var(--shadow-border)] lg:col-span-2">
+          <div className="review-paper flex min-h-72 items-center justify-center rounded-xl bg-paper p-4">
             {composite ? (
               <img
                 src={composite}
                 alt={`Макет ${layout.id}`}
-                className="max-h-svh w-full object-contain"
+                className="review-strip max-h-svh w-full object-contain"
               />
             ) : (
               <p className="text-sm text-fg-muted">
@@ -146,9 +155,9 @@ export function ReviewPane({
           </div>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="review-controls flex flex-col gap-4">
           <FilterBar value={filterId} onChange={onFilter} />
-          <div className="flex flex-col gap-1.5">
+          <div className="review-caption flex flex-col gap-1.5">
             <Label htmlFor="caption">Надпись на карточке</Label>
             <Input
               id="caption"
@@ -158,7 +167,7 @@ export function ReviewPane({
               onChange={(e) => setCaptionLive(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-4 gap-2 lg:grid-cols-2">
+          <div className="review-shots grid grid-cols-4 gap-2 lg:grid-cols-2">
             {shots.map((shot, i) => (
               <button
                 key={i}
@@ -178,7 +187,7 @@ export function ReviewPane({
               </button>
             ))}
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="review-actions flex flex-col gap-2">
             {blobUrl ? (
               <a
                 href={blobUrl}
@@ -194,6 +203,9 @@ export function ReviewPane({
                 Скачать макет
               </Button>
             )}
+            {isS3 && retakeButton}
+            <SecondaryActions className={isS3 ? "review-secondary" : "contents"}>
+            {isS3 && <summary>Сохранить или заказать печать</summary>}
             {user ? (
               <Button
                 variant="outline"
@@ -218,10 +230,8 @@ export function ReviewPane({
                 <Link to="/login">Войти, чтобы заказать</Link>
               </Button>
             )}
-            <Button variant="ghost" onClick={onRetakeAll}>
-              <RotateCcw className="size-4" />
-              Снять заново
-            </Button>
+            </SecondaryActions>
+            {!isS3 && retakeButton}
           </div>
         </div>
       </div>

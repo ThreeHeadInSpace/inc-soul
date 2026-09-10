@@ -9,7 +9,7 @@ export function FilterBar({
   onChange: (id: FilterId) => void;
 }) {
   return (
-    <div className="flex w-full min-w-0 gap-2 overflow-x-auto pb-1">
+    <div className="booth-filters flex w-full min-w-0 gap-2 overflow-x-auto pb-1" role="group" aria-label="Фильтры">
       {FILTERS.map((filter) => {
         const active = filter.id === value;
         return (

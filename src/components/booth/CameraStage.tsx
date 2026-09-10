@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
@@ -151,8 +151,8 @@ export function CameraStage({
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="camera-stage mx-auto flex w-full max-w-5xl flex-col gap-4">
+      <div className="camera-toolbar flex items-center justify-between gap-3">
         <Button variant="ghost" onClick={onBack}>
           {backLabel}
         </Button>
@@ -165,8 +165,9 @@ export function CameraStage({
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-2xl bg-bg-elevated p-2 shadow-[var(--shadow-border)]">
-        <div className="relative overflow-hidden rounded-xl bg-bg" style={{ aspectRatio: previewAspect }}>
+      <div className="camera-body contents">
+      <div className="camera-preview overflow-hidden rounded-2xl bg-bg-elevated p-2 shadow-[var(--shadow-border)]" style={{ "--camera-aspect": previewAspect } as CSSProperties}>
+        <div className="camera-viewfinder relative overflow-hidden rounded-xl bg-bg" style={{ aspectRatio: previewAspect }}>
           <video
             ref={camera.videoRef}
             className={cn(
@@ -222,10 +223,11 @@ export function CameraStage({
         </div>
       </div>
 
+      <div className="camera-controls contents">
       <FilterBar value={filterId} onChange={onFilter} />
       {live && camera.message && <p role="status" className="text-center text-sm text-fg-muted">{camera.message}</p>}
 
-      <div className="flex w-full flex-wrap items-center justify-center gap-2">
+      <div className="camera-shots flex w-full flex-wrap items-center justify-center gap-2">
         {shots.map((shot, i) => (
           <button
             key={i}
@@ -254,7 +256,7 @@ export function CameraStage({
         ))}
       </div>
 
-      <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+      <div className="camera-actions flex flex-col items-center justify-center gap-2 sm:flex-row">
         <Button
           size="lg"
           onClick={beginSession}
@@ -299,6 +301,8 @@ export function CameraStage({
             e.currentTarget.value = "";
           }}
         />
+      </div>
+      </div>
       </div>
     </div>
   );

@@ -15,7 +15,7 @@ export function GalleryRail({
   if (items.length === 0) return null;
 
   return (
-    <section className="mt-16">
+    <section className="recent-photos mt-16">
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-caps text-fg-subtle">

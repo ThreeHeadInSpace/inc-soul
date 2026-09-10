@@ -27,7 +27,7 @@ const MVP_LAYOUTS = [MVP_LAYOUT];
 
 export function HomeHub() {
   return (
-    <Shell>
+    <Shell boothMode="home">
       <section className="max-w-2xl pb-10 pt-2">
         <p className="text-xs uppercase tracking-caps text-fg-subtle">
           Классическая фотобудка
@@ -182,7 +182,7 @@ function SessionFlow({
   }
 
   return (
-    <Shell>
+    <Shell boothMode={layout?.id === "S3" && (step === "shoot" || step === "review") ? "workspace" : undefined}>
       {step === "home" && !fixedLayout && (
         <div className="flex flex-col">
           <section className="max-w-2xl pb-8 pt-2">
@@ -271,20 +271,23 @@ function SessionFlow({
   );
 }
 
-function Shell({ children }: { children: ReactNode }) {
-  return <PageFrame>{children}</PageFrame>;
+function Shell({ children, boothMode }: { children: ReactNode; boothMode?: "home" | "workspace" }) {
+  return <PageFrame boothMode={boothMode}>{children}</PageFrame>;
 }
 
-export function PageFrame({ children }: { children: ReactNode }) {
+export function PageFrame({ children, boothMode }: { children: ReactNode; boothMode?: "home" | "workspace" }) {
   return (
-    <div className="relative min-h-dvh bg-bg text-fg">
+    <div className="relative min-h-dvh bg-bg text-fg" data-booth-mode={boothMode}>
       <div className="booth-curtain absolute inset-y-0 left-0 w-8 sm:w-12" />
       <div className="booth-curtain absolute inset-y-0 right-0 w-8 sm:w-12" />
       <div className="booth-grain absolute inset-0" />
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-8 px-10 pb-16 pt-5 sm:px-16">
+      <div className="booth-frame relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col gap-8 px-10 pb-16 pt-5 sm:px-16">
         <AppHeader />
         {children}
       </div>
+      <footer aria-label="Версия приложения" className="absolute inset-x-0 bottom-0 text-center text-[10px] leading-3 text-fg-subtle">
+        {import.meta.env.VITE_APP_VERSION_LABEL}
+      </footer>
     </div>
   );
 }

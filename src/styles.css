@@ -134,3 +134,255 @@
 .count-pop {
   animation: count-pop 250ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* Only the MVP home and S3 shooting/review UI use these viewport rules.
+   Canvas export dimensions and the other layouts keep their existing sizing. */
+[data-booth-mode] > .booth-frame {
+  min-width: 0;
+  gap: 0.75rem;
+  padding: max(0.75rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+}
+
+[data-booth-mode] .booth-frame > header {
+  margin-bottom: 0;
+  gap: 0.5rem;
+}
+
+[data-booth-mode] .booth-frame > header nav {
+  min-width: 0;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+[data-booth-mode] .booth-frame > header nav > a {
+  padding-inline: 0.75rem;
+}
+
+[data-booth-mode="home"] .recent-photos {
+  min-width: 0;
+  margin-top: clamp(1.5rem, 5vh, 3rem);
+}
+
+[data-booth-mode="home"] .recent-photos figcaption {
+  flex-wrap: wrap;
+}
+
+[data-booth-mode="home"] .recent-photos figcaption button {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+[data-booth-mode="workspace"] > .booth-frame {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  min-height: 42rem;
+}
+
+[data-booth-mode="workspace"] :is(.camera-stage, .review-stage) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+}
+
+[data-booth-mode="workspace"] :is(.camera-body, .review-body) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-booth-mode="workspace"] :is(.camera-controls, .review-controls) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 0.5rem;
+}
+
+[data-booth-mode="workspace"] :is(.camera-preview, .review-preview) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  grid-column: auto;
+  padding: 0.5rem;
+}
+
+[data-booth-mode="workspace"] .camera-preview {
+  container-type: size;
+}
+
+[data-booth-mode="workspace"] .camera-viewfinder {
+  /* Width follows its existing photo-slot aspect ratio; height is bounded
+     by the grid cell, so the displayed crop stays identical on every screen. */
+  width: min(100%, calc(100cqh * var(--camera-aspect)));
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  flex: 0 1 auto;
+}
+
+[data-booth-mode="workspace"] .camera-viewfinder video {
+  display: block;
+}
+
+[data-booth-mode="workspace"] .booth-filters {
+  flex: none;
+  padding: 0.125rem;
+  overscroll-behavior-x: contain;
+}
+
+[data-booth-mode="workspace"] .booth-filters button {
+  min-height: 2.75rem;
+}
+
+[data-booth-mode="workspace"] .camera-actions {
+  display: flex;
+  flex-flow: row wrap;
+  gap: 0.5rem;
+}
+
+[data-booth-mode="workspace"] .camera-actions > button:first-child {
+  flex: 1 0 100%;
+}
+
+[data-booth-mode="workspace"] .review-heading {
+  gap: 0.25rem;
+}
+
+[data-booth-mode="workspace"] .review-heading h2 {
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  line-height: 1.2;
+}
+
+[data-booth-mode="workspace"] .review-heading p {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+[data-booth-mode="workspace"] .review-paper {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  padding: 0.5rem;
+}
+
+[data-booth-mode="workspace"] .review-strip {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+[data-booth-mode="workspace"] .review-caption input {
+  /* Prevent Safari's automatic input zoom without disabling user zoom. */
+  font-size: 1rem;
+}
+
+[data-booth-mode="workspace"] .review-shots {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+[data-booth-mode="workspace"] .review-shots img,
+[data-booth-mode="workspace"] .review-shots button > span:first-child {
+  height: 2.5rem;
+  width: 100%;
+  aspect-ratio: auto;
+}
+
+[data-booth-mode="workspace"] .review-shots button > span:last-child {
+  padding-block: 0.25rem;
+  line-height: 1rem;
+}
+
+[data-booth-mode="workspace"] .review-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+[data-booth-mode="workspace"] .review-actions > :is(a, button) {
+  min-height: 3rem;
+  padding-inline: 0.5rem;
+  font-size: 0.875rem;
+}
+
+[data-booth-mode="workspace"] .review-secondary {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+[data-booth-mode="workspace"] .review-secondary summary {
+  display: list-item;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 2.75rem;
+  margin-inline: auto;
+  padding: 0.75rem 0.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+[data-booth-mode="workspace"] .review-secondary summary:focus-visible {
+  outline: 2px solid var(--color-paper);
+  outline-offset: 2px;
+}
+
+[data-booth-mode="workspace"] .review-secondary > :is(a, button) {
+  display: flex;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  [data-booth-mode] > .booth-frame {
+    padding-inline: clamp(1.5rem, 4vw, 3rem);
+  }
+
+  [data-booth-mode="workspace"] :is(.camera-body, .review-body) {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    grid-template-rows: minmax(0, 1fr);
+    gap: clamp(1rem, 2vw, 2rem);
+  }
+
+  [data-booth-mode="workspace"] :is(.camera-controls, .review-controls) {
+    align-self: center;
+  }
+
+  [data-booth-mode="workspace"] .booth-filters {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  [data-booth-mode="workspace"] .review-shots img {
+    height: clamp(2.5rem, 8dvh, 5rem);
+  }
+}
+
+/* Short windows / the on-screen keyboard may scroll naturally. Nothing is
+   clipped and browser zoom remains available. */
+@media (max-height: 671px) {
+  [data-booth-mode="workspace"] > .booth-frame {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  [data-booth-mode="workspace"] :is(.camera-preview, .review-preview) {
+    height: clamp(12rem, 45dvh, 24rem);
+  }
+}
