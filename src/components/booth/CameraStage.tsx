@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { ACTION_ERROR, AsyncNotice } from "@/components/booth/AsyncNotice";
 import {
   CameraOff,
   ImagePlus,
@@ -39,6 +39,9 @@ export function CameraStage({
   const [count, setCount] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const uploadRef = useRef(false);
   const autoRef = useRef(false);
   const takingRef = useRef(false);
   const completedRef = useRef(false);
@@ -95,10 +98,11 @@ export function CameraStage({
     if (!video || camera.status !== "ready") return;
     if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
       autoRef.current = false;
-      toast.error("Камера ещё готовится. Повторите снимок.");
+      setActionError("Камера ещё готовится. Повторите снимок.");
       return;
     }
     takingRef.current = true;
+    setActionError(null);
     setBusy(true);
     setFlash(true);
     try {
@@ -112,7 +116,7 @@ export function CameraStage({
       }
     } catch {
       autoRef.current = false;
-      toast.error("Не удалось снять кадр. Повторите попытку.");
+      setActionError("Не удалось снять кадр. Повторите попытку.");
     } finally {
       window.setTimeout(() => setFlash(false), 360);
       takingRef.current = false;
@@ -121,13 +125,18 @@ export function CameraStage({
   }
 
   function beginSession() {
-    if (!live || done || count !== null) return;
+    if (!live || done || count !== null || busy || uploadRef.current) return;
+    setActionError(null);
     autoRef.current = true;
     setCount(3);
   }
 
   async function onUpload(list: FileList | null) {
-    if (!list?.length) return;
+    if (!list?.length || uploadRef.current) return;
+    uploadRef.current = true;
+    setUploading(true);
+    setActionError(null);
+    try {
     const files = Array.from(list).slice(0, layout.poses);
     const urls = await Promise.all(files.map(fileToDataUrl));
     const next = [...shotsRef.current];
@@ -139,6 +148,12 @@ export function CameraStage({
       }
     }
     onShots(next);
+    } catch {
+      setActionError(ACTION_ERROR);
+    } finally {
+      uploadRef.current = false;
+      setUploading(false);
+    }
   }
 
   const statusCopy: Record<string, string> = {
@@ -186,8 +201,7 @@ export function CameraStage({
           {!live && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
               <CameraOff className="size-8 text-fg-subtle" />
-              <p className="font-display text-xl text-fg">{statusCopy[camera.status]}</p>
-              <p className="max-w-sm text-sm text-fg-muted">{camera.message}</p>
+              <p role="status" className="max-w-sm text-sm text-fg">{camera.status === "requesting" ? camera.message : statusCopy[camera.status]}</p>
               {camera.status !== "requesting" && (
                 <div className="flex flex-wrap justify-center gap-2">
                   <Button onClick={() => void camera.start()}>Повторить</Button>
@@ -225,14 +239,15 @@ export function CameraStage({
 
       <div className="camera-controls contents">
       <FilterBar value={filterId} onChange={onFilter} />
-      {live && camera.message && <p role="status" className="text-center text-sm text-fg-muted">{camera.message}</p>}
+      {camera.message && camera.status !== "requesting" && <AsyncNotice error message={camera.message} />}
+      {actionError && <AsyncNotice error message={actionError} />}
 
       <div className="camera-shots flex w-full flex-wrap items-center justify-center gap-2">
         {shots.map((shot, i) => (
           <button
             key={i}
             type="button"
-            disabled={retakingRef.current || count !== null || busy}
+            disabled={retakingRef.current || count !== null || busy || uploading}
             onClick={() => {
               const next = [...shots];
               next[i] = null;
@@ -260,16 +275,16 @@ export function CameraStage({
         <Button
           size="lg"
           onClick={beginSession}
-          disabled={!live || done || count !== null || busy}
+          disabled={!live || done || count !== null || busy || uploading}
         >
           <Aperture className="size-5" />
-          {retakingRef.current ? `Переснять кадр ${nextIndex + 1}` : filled === 0 ? "Снять серию" : "Следующий кадр"}
+          {busy ? "Сохраняем кадр…" : retakingRef.current ? `Переснять кадр ${nextIndex + 1}` : filled === 0 ? "Снять серию" : "Следующий кадр"}
         </Button>
         {camera.canSwitch && (
           <Button
             variant="outline"
             size="icon"
-            disabled={!live || count !== null || busy || autoRef.current}
+            disabled={!live || count !== null || busy || uploading || autoRef.current}
             onClick={() => void camera.switchCamera()}
             aria-label="Переключить камеру"
           >
@@ -278,11 +293,11 @@ export function CameraStage({
         )}
         <Button
           variant="outline"
-          disabled={count !== null || busy || autoRef.current}
+          disabled={count !== null || busy || uploading || autoRef.current}
           onClick={() => fileRef.current?.click()}
         >
           <ImagePlus className="size-4" />
-          Загрузить
+          {uploading ? "Загружаем фото…" : "Загрузить"}
         </Button>
         {camera.status !== "ready" && camera.status !== "requesting" && (
           <Button variant="ghost" onClick={() => void camera.start()}>

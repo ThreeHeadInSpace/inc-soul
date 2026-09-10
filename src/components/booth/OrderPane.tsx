@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import type { Layout } from "@/lib/layouts";
 import { placeOrder } from "@/lib/orders";
 import { orderTotal, MAX_COPIES, EXTRA_AFTER, EXTRA_STEP_RUB } from "@/lib/pricing";
 import { formatRub } from "@/lib/utils";
+import { ACTION_ERROR, AsyncNotice } from "@/components/booth/AsyncNotice";
 
 type FormState = {
   customerName: string;
@@ -51,6 +52,8 @@ export function OrderPane({
 }) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
   const prices = orderTotal(form.copies, layout.unitPrice);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -59,19 +62,22 @@ export function OrderPane({
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
+    setSubmitError(null);
     if (!composite) {
-      toast.error("Сначала соберите макет");
+      setSubmitError("Сначала соберите макет");
       return;
     }
     const filledShots = shots.filter((s): s is string => Boolean(s));
     if (filledShots.length < layout.poses) {
-      toast.error("Нужны все кадры макета");
+      setSubmitError("Нужны все кадры макета");
       return;
     }
     if (!/^\d{6}$/.test(form.postalCode)) {
-      toast.error("Индекс Почты России — 6 цифр");
+      setSubmitError("Индекс Почты России — 6 цифр");
       return;
     }
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const compactComposite = await compressDataUrl(composite, 1200, 0.82);
@@ -97,12 +103,10 @@ export function OrderPane({
       });
       onDone(result.orderNumber, result.totalPrice);
       toast.success(`Заказ №${result.orderNumber} принят`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Не удалось отправить заказ";
-      toast.error(
-        message === "Unauthorized" ? "Войдите в аккаунт, чтобы оформить заказ" : message,
-      );
+    } catch {
+      setSubmitError(ACTION_ERROR);
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -126,7 +130,7 @@ export function OrderPane({
         </div>
       </div>
 
-      <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-4 lg:col-span-2">
+      <form aria-busy={submitting} onSubmit={(e) => void submit(e)} className="flex flex-col gap-4 lg:col-span-2">
         <div>
           <p className="text-xs uppercase tracking-caps text-fg-subtle">
             Доставка
@@ -230,11 +234,13 @@ export function OrderPane({
           />
         </Field>
 
+        {submitError && <AsyncNotice error message={submitError} />}
+        {submitting && <p role="status" className="text-sm text-fg-muted">Отправляем заказ… Дождитесь подтверждения.</p>}
         <div className="flex flex-wrap gap-2 pt-2">
           <Button type="submit" size="lg" disabled={submitting}>
             {submitting ? "Отправляем…" : `Оформить · ${formatRub(prices.total)}`}
           </Button>
-          <Button type="button" variant="ghost" onClick={onBack}>
+          <Button type="button" variant="ghost" onClick={onBack} disabled={submitting}>
             Назад
           </Button>
         </div>

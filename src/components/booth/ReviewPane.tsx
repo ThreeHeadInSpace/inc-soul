@@ -7,6 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FilterBar } from "@/components/booth/FilterBar";
+import { ACTION_ERROR, AsyncNotice } from "@/components/booth/AsyncNotice";
 import {
   blobUrlFromDataUrl,
   composeLayout,
@@ -45,6 +46,15 @@ export function ReviewPane({
   const [caption, setCaption] = useState("");
   const [captionLive, setCaptionLive] = useState("");
   const [saving, setSaving] = useState(false);
+  const [generationError, setGenerationError] = useState(false);
+  const [generationAttempt, setGenerationAttempt] = useState(0);
+  const [downloadError, setDownloadError] = useState(false);
+  const [downloadAttempt, setDownloadAttempt] = useState(0);
+  const [downloadStarted, setDownloadStarted] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const savingRef = useRef(false);
+  const generationPending = working || captionLive.trim() !== caption;
+  const resultReady = Boolean(composite) && !generationPending && !generationError;
   const onCompositeRef = useRef(onComposite);
   onCompositeRef.current = onComposite;
   const filename = `inc-soul-layout-${layout.id}.jpg`;
@@ -57,6 +67,8 @@ export function ReviewPane({
   useEffect(() => {
     let cancelled = false;
     setWorking(true);
+    setGenerationError(false);
+    setDownloadStarted(false);
     const dateLabel = new Date().toLocaleDateString("ru-RU");
     void composeLayout(layout, shots, filterId, { dateLabel, caption })
       .then((url) => {
@@ -64,30 +76,42 @@ export function ReviewPane({
         setComposite(url);
         onCompositeRef.current(url);
       })
+      .catch(() => {
+        if (!cancelled) setGenerationError(true);
+      })
       .finally(() => {
         if (!cancelled) setWorking(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [layout, shots, filterId, caption]);
+  }, [layout, shots, filterId, caption, generationAttempt]);
 
   useEffect(() => {
     if (!composite) {
       setBlobUrl(null);
       return;
     }
-    const url = blobUrlFromDataUrl(composite);
-    setBlobUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [composite]);
+    setDownloadError(false);
+    setBlobUrl(null);
+    try {
+      const url = blobUrlFromDataUrl(composite);
+      setBlobUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } catch {
+      setDownloadError(true);
+    }
+  }, [composite, downloadAttempt]);
 
   async function persistToCabinet() {
+    if (savingRef.current || !resultReady) return;
     if (!user || !composite) {
       toast.error("Войдите, чтобы сохранить в кабинет");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
+    setSaveError(false);
     try {
       const compact = await compressDataUrl(composite, 1100, 0.82);
       const filled = shots.filter((s): s is string => Boolean(s));
@@ -104,19 +128,21 @@ export function ReviewPane({
         },
       });
       toast.success("Шаблон в кабинете");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить");
+    } catch {
+      setSaveError(true);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
 
   const isS3 = layout.id === "S3";
   const SecondaryActions = isS3 ? "details" : "div";
-  const downloadButton = blobUrl ? (
+  const downloadButton = blobUrl && resultReady ? (
     <a
       href={blobUrl}
       download={filename}
+      onClick={() => setDownloadStarted(true)}
       className={cn(buttonVariants({ variant: isS3 ? "ghost" : "primary", size: "lg" }))}
     >
       <Download className="size-4" />
@@ -125,15 +151,15 @@ export function ReviewPane({
   ) : (
     <Button variant={isS3 ? "ghost" : "primary"} size="lg" disabled>
       <Download className="size-4" />
-      Скачать макет
+      {generationPending ? "Собираем ленточку…" : !blobUrl && !downloadError && resultReady ? "Готовим JPEG…" : "Скачать макет"}
     </Button>
   );
-  const orderButton = user ? (
+  const orderButton = user || !resultReady ? (
     <Button
       className={isS3 ? "review-order" : undefined}
       variant={isS3 ? "primary" : "ghost"}
       onClick={onOrder}
-      disabled={!composite}
+      disabled={!resultReady}
     >
       <Truck className="size-4" />
       {isS3 ? "Заказать ленточку" : "Заказать печать"}
@@ -160,8 +186,8 @@ export function ReviewPane({
           <h2 className="font-display text-3xl tracking-tight">
             {layout.title}
           </h2>
-          <p className="mt-1 text-sm text-fg-muted">
-            {layout.sizeLabel} · {layout.poseLabel}. {isS3 ? "Ваша ленточка готова к печати." : "Скачайте карточку или закажите печать."}
+          <p role="status" className="mt-1 text-sm text-fg-muted">
+            {generationPending ? "Собираем ленточку…" : generationError ? "Ленточка не готова. Повторите сборку ниже." : <>{layout.sizeLabel} · {layout.poseLabel}. {isS3 ? "Ваша ленточка готова к печати." : "Скачайте карточку или закажите печать."}</>}
           </p>
         </div>
         <p className="text-sm text-fg-muted">
@@ -175,7 +201,7 @@ export function ReviewPane({
             {composite && isS3 ? (
               <Dialog.Root>
                 <Dialog.Trigger asChild>
-                  <button type="button" className="review-enlarge" aria-label="Увеличить фотополоску">
+                  <button type="button" className="review-enlarge" aria-label="Увеличить фотополоску" disabled={!resultReady}>
                     <img src={composite} alt={`Макет ${layout.id}`} className="review-strip" />
                   </button>
                 </Dialog.Trigger>
@@ -199,14 +225,15 @@ export function ReviewPane({
                 className="review-strip max-h-svh w-full object-contain"
               />
             ) : (
-              <p className="text-sm text-fg-muted">
-                {working ? "Собираем карточку…" : "Нет кадра"}
+              <p role="status" className="text-sm text-paper-ink">
+                {working ? "Собираем карточку…" : generationError ? "Повторите сборку ленточки" : "Нет кадра"}
               </p>
             )}
           </div>
         </div>
 
         <div className="review-controls flex flex-col gap-4">
+          {generationError && <AsyncNotice error message="Не удалось собрать ленточку. Ваши кадры сохранены на этом экране." onRetry={() => setGenerationAttempt((attempt) => attempt + 1)} />}
           <FilterBar value={filterId} onChange={onFilter} />
           <div className="review-caption flex flex-col gap-1.5">
             <Label htmlFor="caption">Надпись на карточке</Label>
@@ -244,10 +271,13 @@ export function ReviewPane({
             <SecondaryActions className={isS3 ? "review-secondary" : "contents"}>
             {isS3 && <summary>Скачать / сохранить</summary>}
             {isS3 && downloadButton}
+            {downloadError && <AsyncNotice error message="Не удалось подготовить JPEG для скачивания." onRetry={() => setDownloadAttempt((attempt) => attempt + 1)} />}
+            {downloadStarted && !downloadError && <AsyncNotice message="JPEG передан браузеру. Проверьте загрузки; если файл не появился, повторите скачивание." />}
+            {saveError && <AsyncNotice error message={ACTION_ERROR} />}
             {user ? (
               <Button
                 variant="outline"
-                disabled={!composite || saving}
+                disabled={!resultReady || saving}
                 onClick={() => void persistToCabinet()}
               >
                 <FolderPlus className="size-4" />

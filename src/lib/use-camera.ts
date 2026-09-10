@@ -39,7 +39,7 @@ export function useCamera() {
     }
 
     setStatus("requesting");
-    setMessage("Запрашиваем доступ к камере…");
+    setMessage(switching ? "Переключаем камеру…" : "Разрешите доступ к камере в запросе браузера…");
 
     try {
       const acquire = (requested: FacingMode, exact: boolean) => navigator.mediaDevices.getUserMedia({
@@ -65,6 +65,7 @@ export function useCamera() {
         return;
       }
       streamRef.current = stream;
+      setMessage("Запускаем изображение с камеры…");
       const actualMode = stream.getVideoTracks()[0]?.getSettings().facingMode;
       if (switching && actualMode !== mode) switchFailed = true;
       const video = videoRef.current;
