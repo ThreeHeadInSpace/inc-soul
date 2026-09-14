@@ -21,6 +21,11 @@ import { EXTRA_AFTER, EXTRA_STEP_RUB, PRINT_PRICE_RUB, SHIPPING_PRICE_RUB } from
 import { formatRub } from "@/lib/utils";
 
 type Step = "home" | "shoot" | "review" | "order" | "done";
+type RetakeDraft = {
+  token: symbol;
+  shots: Array<string | null>;
+  filterId: FilterId;
+};
 
 const MVP_LAYOUT = BOOTH_LAYOUTS.find((layout) => layout.id === "S3")!;
 const MVP_LAYOUTS = [MVP_LAYOUT];
@@ -123,6 +128,7 @@ function SessionFlow({
     Array.from({ length: fixedLayout?.poses ?? 0 }, () => null),
   );
   const [filterId, setFilterId] = useState<FilterId>("none");
+  const [retake, setRetake] = useState<RetakeDraft | null>(null);
   const [composite, setComposite] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
   const [orderTotalValue, setOrderTotalValue] = useState<number | null>(null);
@@ -155,6 +161,14 @@ function SessionFlow({
   }, [addToGallery, filterId, galleryId, layoutId]);
 
   function retakeSlot(index: number) {
+    if (layout?.id === "S3" && shots[index]) {
+      setRetake({
+        token: Symbol("retake"),
+        shots: shots.map((shot, i) => i === index ? null : shot),
+        filterId,
+      });
+      return;
+    }
     setShots((prev) => {
       const next = [...prev];
       next[index] = null;
@@ -217,30 +231,46 @@ function SessionFlow({
         </div>
       )}
 
-      {step === "shoot" && layout && (
+      {(step === "shoot" || retake) && layout && (
         <CameraStage
           layout={layout}
-          shots={shots}
-          onShots={setShots}
-          filterId={filterId}
-          onFilter={setFilterId}
-          onBack={fixedLayout ? () => void navigate({ to: "/" }) : resetHome}
-          backLabel={fixedLayout ? "На главную" : "Назад к макетам"}
-          onComplete={() => setStep("review")}
+          shots={retake?.shots ?? shots}
+          // Ignore a late capture/upload from an attempt that was already cancelled.
+          onShots={retake ? (next) => setRetake((current) =>
+            current?.token === retake.token ? { ...current, shots: next } : current,
+          ) : setShots}
+          filterId={retake?.filterId ?? filterId}
+          onFilter={retake ? (next) => setRetake((current) =>
+            current?.token === retake.token ? { ...current, filterId: next } : current,
+          ) : setFilterId}
+          onBack={retake ? () => setRetake(null) : fixedLayout ? () => void navigate({ to: "/" }) : resetHome}
+          backLabel={retake ? "Отмена" : fixedLayout ? "На главную" : "Назад к макетам"}
+          onComplete={() => {
+            if (retake) {
+              setShots(retake.shots);
+              setFilterId(retake.filterId);
+              setRetake(null);
+            } else {
+              setStep("review");
+            }
+          }}
         />
       )}
 
       {step === "review" && layout && (
-        <ReviewPane
-          layout={layout}
-          shots={shots}
-          filterId={filterId}
-          onFilter={setFilterId}
-          onRetakeSlot={retakeSlot}
-          onRetakeAll={retakeAll}
-          onOrder={() => setStep("order")}
-          onComposite={(url) => void handleComposite(url)}
-        />
+        // Keep the caption and finished JPEG alive while the camera edits a draft.
+        <div className={retake ? "hidden" : "contents"}>
+          <ReviewPane
+            layout={layout}
+            shots={shots}
+            filterId={filterId}
+            onFilter={setFilterId}
+            onRetakeSlot={retakeSlot}
+            onRetakeAll={retakeAll}
+            onOrder={() => setStep("order")}
+            onComposite={(url) => void handleComposite(url)}
+          />
+        </div>
       )}
 
       {step === "order" && layout && (

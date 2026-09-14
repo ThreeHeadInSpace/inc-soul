@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Download, FolderPlus, RotateCcw, Truck, X } from "lucide-react";
+import { Download, FolderPlus, RotateCcw, Share2, Truck, X } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { FilterBar } from "@/components/booth/FilterBar";
 import { ACTION_ERROR, AsyncNotice } from "@/components/booth/AsyncNotice";
 import {
-  blobUrlFromDataUrl,
+  dataUrlToBlob,
   composeLayout,
   compressDataUrl,
 } from "@/lib/compose";
@@ -41,7 +41,7 @@ export function ReviewPane({
 }) {
   const user = useCurrentUser();
   const [composite, setComposite] = useState<string | null>(null);
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [jpeg, setJpeg] = useState<{ source: string; file: File; url: string } | null>(null);
   const [working, setWorking] = useState(true);
   const [caption, setCaption] = useState("");
   const [captionLive, setCaptionLive] = useState("");
@@ -52,12 +52,25 @@ export function ReviewPane({
   const [downloadAttempt, setDownloadAttempt] = useState(0);
   const [downloadStarted, setDownloadStarted] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState(false);
+  const sharingRef = useRef(false);
   const savingRef = useRef(false);
   const generationPending = working || captionLive.trim() !== caption;
   const resultReady = Boolean(composite) && !generationPending && !generationError;
   const onCompositeRef = useRef(onComposite);
   onCompositeRef.current = onComposite;
   const filename = `inc-soul-layout-${layout.id}.jpg`;
+  const blobUrl = jpeg?.source === composite ? jpeg.url : null;
+  const canShare = useMemo(() => {
+    if (layout.id !== "S3" || !jpeg || typeof navigator === "undefined" ||
+        typeof navigator.share !== "function" || typeof navigator.canShare !== "function") return false;
+    try {
+      return navigator.canShare({ files: [jpeg.file] });
+    } catch {
+      return false;
+    }
+  }, [jpeg, layout.id]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setCaption(captionLive.trim()), 280);
@@ -89,19 +102,40 @@ export function ReviewPane({
 
   useEffect(() => {
     if (!composite) {
-      setBlobUrl(null);
+      setJpeg(null);
       return;
     }
     setDownloadError(false);
-    setBlobUrl(null);
+    setShareError(false);
+    setJpeg(null);
     try {
-      const url = blobUrlFromDataUrl(composite);
-      setBlobUrl(url);
+      // Download and Share use the same encoded JPEG, without another canvas export.
+      const file = new File([dataUrlToBlob(composite)], filename, { type: "image/jpeg" });
+      const url = URL.createObjectURL(file);
+      setJpeg({ source: composite, file, url });
       return () => URL.revokeObjectURL(url);
     } catch {
       setDownloadError(true);
     }
-  }, [composite, downloadAttempt]);
+  }, [composite, downloadAttempt, filename]);
+
+  async function shareJpeg() {
+    if (sharingRef.current || !canShare || !jpeg || !blobUrl || !resultReady) return;
+    sharingRef.current = true;
+    setSharing(true);
+    setShareError(false);
+    try {
+      // Call before any await so the browser retains the click's user activation.
+      await navigator.share({ files: [jpeg.file] });
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setShareError(true);
+      }
+    } finally {
+      sharingRef.current = false;
+      setSharing(false);
+    }
+  }
 
   async function persistToCabinet() {
     if (savingRef.current || !resultReady) return;
@@ -268,6 +302,12 @@ export function ReviewPane({
           <div className="review-actions flex flex-col gap-2">
             {isS3 ? orderButton : downloadButton}
             {isS3 && retakeButton}
+            {canShare && (
+              <Button variant="ghost" onClick={() => void shareJpeg()} disabled={!resultReady || !blobUrl || sharing}>
+                <Share2 className="size-4" />
+                {sharing ? "Открываем…" : "Поделиться"}
+              </Button>
+            )}
             <SecondaryActions className={isS3 ? "review-secondary" : "contents"}>
             {isS3 && <summary>Скачать / сохранить</summary>}
             {isS3 && downloadButton}
@@ -292,6 +332,7 @@ export function ReviewPane({
             </SecondaryActions>
             {!isS3 && retakeButton}
           </div>
+          {shareError && <AsyncNotice error message="Не удалось поделиться. Скачайте JPEG через «Скачать / сохранить»." />}
         </div>
       </div>
     </div>
