@@ -1,3 +1,5 @@
+import { S3_PRODUCT } from "./pricing.ts";
+
 export type LayoutId =
   | "A"
   | "B"
@@ -149,7 +151,7 @@ function singleStrip(id: LayoutId, poses: 3 | 4): Layout {
     orientation: "portrait",
     width,
     height,
-    unitPrice: 49,
+    unitPrice: id === "S3" ? S3_PRODUCT.price : 49,
     slots,
   };
 }

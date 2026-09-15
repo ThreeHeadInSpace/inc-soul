@@ -61,7 +61,7 @@ export function PrintMasterAction({ layout, shots, filterId, caption, dateLabel,
           {working ? "Готовим файл для печати…" : "Подготовить для печати"}
         </Button>
       )}
-      {error && <AsyncNotice error message="Не удалось собрать файл для печати. Повторите подготовку; цифровой JPEG доступен отдельно." />}
+      {error && <AsyncNotice error message="Не удалось собрать файл для печати. Повторите подготовку; ваши кадры сохранены на этом экране." />}
     </div>
   );
 }

@@ -34,7 +34,7 @@ await context.addInitScript((testShare) => {
   HTMLCanvasElement.prototype.toDataURL = function (...args) {
     const data = encode.apply(this, args);
     if (this.__sourceFrame) window.__captures.push(data);
-    if (args[1] === 0.93) window.__compositions++;
+    if (args[1] === 0.93) { window.__compositions++; window.__digitalJpeg = data; }
     return data;
   };
   if (testShare) {
@@ -68,7 +68,7 @@ const results = { phase, sessions: [], responsive: [], errors };
 const shotSources = () => page.locator(".review-shots img").evaluateAll((imgs) => imgs.map((img) => img.src));
 const ready = () => page.waitForFunction(() => {
   const review = document.querySelector(".review-stage");
-  return review?.getClientRects().length > 0 && !!review.querySelector('a[download="inc-soul-layout-S3.jpg"]');
+  return review?.getClientRects().length > 0 && review.dataset.resultReady === "true";
 });
 const gallery = () => page.evaluate(() => JSON.parse(localStorage.getItem("incsoul-gallery"))?.state.items ?? []);
 const cameraReady = () => page.waitForFunction(() => {
@@ -83,7 +83,7 @@ async function caption(value) {
 async function verifyCancellation(original) {
   await caption("Сессия с отменой");
   const image = await page.getByAltText("Макет S3", { exact: true }).getAttribute("src");
-  const href = await page.locator("a[download]").getAttribute("href");
+  const href = await page.evaluate(() => window.__digitalJpeg);
   const captureCount = await page.evaluate(() => window.__captures.length);
   // Wait for the original thumbnail write before comparing storage.
   await page.waitForTimeout(400);
@@ -94,6 +94,7 @@ async function verifyCancellation(original) {
     await page.locator(".camera-stage").getByRole("button", { name: "Холодный", exact: true }).click();
     if (slot === 2) {
       await page.locator(".camera-actions").getByRole("button", { name: "С таймером", exact: true }).click();
+      await page.getByRole("button", { name: "3 сек", exact: true }).click();
       await page.locator(".count-pop").waitFor();
     }
     await page.locator(".camera-toolbar").getByRole("button", { name: "Отмена", exact: true }).click();
@@ -101,7 +102,7 @@ async function verifyCancellation(original) {
     if (slot === 2) await page.waitForTimeout(3600);
     assert.deepEqual(await shotSources(), original);
     assert.equal(await page.getByAltText("Макет S3", { exact: true }).getAttribute("src"), image);
-    assert.equal(await page.locator("a[download]").getAttribute("href"), href);
+    assert.equal(await page.evaluate(() => window.__digitalJpeg), href);
     assert.equal(await page.getByLabel("Надпись на карточке").inputValue(), "Сессия с отменой");
     assert.deepEqual(await gallery(), recent);
     assert.equal(await page.evaluate(() => window.__captures.length), captureCount);
@@ -148,7 +149,7 @@ async function verifyShare() {
   assert.equal(await page.evaluate(() => window.__compositions), compositions);
   const data = await page.evaluate(async () => {
     const file = window.__sharedFiles[0];
-    const download = await (await fetch(document.querySelector("a[download]").href)).arrayBuffer();
+    const download = await (await fetch(window.__digitalJpeg)).arrayBuffer();
     const shared = new Uint8Array(await file.arrayBuffer());
     return { same: shared.every((b, i) => b === new Uint8Array(download)[i]) && shared.length === download.byteLength, name: file.name, type: file.type, active: window.__shareActivation };
   });
@@ -158,9 +159,9 @@ async function verifyShare() {
     await caption(`Share: ${mode}`);
     if (["no-share", "no-canShare", "no-files", "probe-throws"].includes(mode)) {
       assert.equal(await share.count(), 0);
-      assert.equal(await page.locator("a[download]").count(), 1);
+      assert.equal(await page.locator('a[download$=".jpg"]').count(), 0);
       if (mode === "no-share") {
-        await downloadAndCheck("desktop-fallback");
+        await verifyDigitalJpeg("desktop-fallback");
         await page.locator(".review-secondary > summary").click();
       }
       continue;
@@ -175,7 +176,7 @@ async function verifyShare() {
     }
     if (mode === "error") {
       await page.getByText(/Не удалось поделиться/).waitFor();
-      assert.equal(await page.locator("a[download]").count(), 1);
+      assert.equal(await page.locator('a[download$=".jpg"]').count(), 0);
     } else {
       await share.waitFor();
       assert.equal(await page.getByText(/Не удалось поделиться/).count(), 0);
@@ -187,7 +188,7 @@ async function verifyShare() {
   await ready();
   await share.click();
   const shared = await page.evaluate(async () => Array.from(new Uint8Array(await window.__sharedFiles[0].arrayBuffer())));
-  const downloaded = await page.locator('a[download="inc-soul-layout-S3.jpg"]').evaluate(async (a) => Array.from(new Uint8Array(await (await fetch(a.href)).arrayBuffer())));
+  const downloaded = await page.evaluate(async () => Array.from(new Uint8Array(await (await fetch(window.__digitalJpeg)).arrayBuffer())));
   assert.deepEqual(shared, downloaded);
   results.share = { ...data, cases: "missing share/canShare; files unsupported; probe throws; abort; failure fallback; pending double click; updated JPEG" };
   console.log("PASS: Share capability, exact JPEG, activation, cancel, fallback, pending guard");
@@ -195,21 +196,17 @@ async function verifyShare() {
 async function screenshot(name) {
   await page.screenshot({ path: fileURLToPath(new URL(`${name}.png`, output)) });
 }
-async function downloadAndCheck(name) {
+async function verifyDigitalJpeg(name) {
   await page.locator(".review-secondary > summary").click();
-  const pending = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Скачать макет", exact: true }).click();
-  const download = await pending;
-  const bytes = await readFile(await download.path());
-  const digital = await page.locator('a[download="inc-soul-layout-S3.jpg"]').evaluate(async (a) => Array.from(new Uint8Array(await (await fetch(a.href)).arrayBuffer())));
-  assert.deepEqual(bytes, Buffer.from(digital));
+  assert.equal(await page.getByRole("link", { name: "Скачать макет", exact: true }).count(), 0);
+  const digital = await page.evaluate(async () => Array.from(new Uint8Array(await (await fetch(window.__digitalJpeg)).arrayBuffer())));
+  const bytes = Buffer.from(digital);
   assert.equal(bytes.readUInt16BE(0), 0xffd8);
   assert.deepEqual(await page.evaluate(async (data) => {
-    const image = new Image(); image.src = `data:image/jpeg;base64,${data}`; await image.decode();
+    const image = new Image(); image.src = 'data:image/jpeg;base64,' + data; await image.decode();
     return [image.naturalWidth, image.naturalHeight];
   }, bytes.toString("base64")), [520, 1560]);
-  assert.equal(download.suggestedFilename(), "inc-soul-layout-S3.jpg");
-  await writeFile(new URL(`${name}.jpg`, output), bytes);
+  await writeFile(new URL(name + '.jpg', output), bytes);
   return bytes.length;
 }
 try {
@@ -230,7 +227,8 @@ try {
     if (phase === "baseline") {
       await page.getByRole("button", { name: "Снять серию", exact: true }).click();
     } else if (cycle === 1) {
-      await page.getByRole("button", { name: "Серия ×3", exact: true }).click();
+      await page.getByRole("button", { name: "С таймером", exact: true }).click();
+      await page.getByRole("button", { name: "3 сек", exact: true }).click();
       await page.locator(".count-pop").waitFor();
       assert.ok(await page.getByRole("button", { name: "Снять кадр", exact: true }).isDisabled());
     } else {
@@ -244,7 +242,10 @@ try {
           assert.equal(await page.locator(".count-pop").count(), 0);
         }
       }
-      if (cycle === 3) await page.getByRole("button", { name: "Серия · ещё 2", exact: true }).click();
+      if (cycle === 3) {
+        await page.getByRole("button", { name: "С таймером", exact: true }).click();
+        await page.getByRole("button", { name: "3 сек", exact: true }).click();
+      }
     }
     await ready();
     const original = await shotSources();
@@ -258,6 +259,7 @@ try {
     await page.getByRole("button", { name: "Переснять кадр 2", exact: true }).click();
     await cameraReady();
     await page.locator(".camera-actions").getByRole("button", { name: phase === "baseline" ? "Переснять кадр 2" : cycle === 2 ? "С таймером" : "Снять кадр", exact: true }).click();
+    if (cycle === 2) await page.getByRole("button", { name: "3 сек", exact: true }).click();
     await ready();
     const retaken = await shotSources();
     assert.equal(retaken[0], original[0]);
@@ -273,7 +275,7 @@ try {
     assert.ok(await page.getByRole("dialog").isVisible());
     assert.ok(await page.getByAltText("Фотополоска S3 целиком").isVisible());
     await page.getByRole("button", { name: "Закрыть просмотр" }).click();
-    const bytes = await downloadAndCheck(`session-${cycle}`);
+    const bytes = await verifyDigitalJpeg(`session-${cycle}`);
     await page.waitForFunction((count) => JSON.parse(localStorage.getItem("incsoul-gallery"))?.state.items.length === count, cycle);
     results.sessions.push({ cycle, mode: phase === "baseline" || cycle === 1 ? "series" : cycle === 2 ? "single ×3" : "single + remaining series", captures: 3, retake: "only slot 2", jpegBytes: bytes, galleryCount: (await gallery()).length, streamReleased: true });
     console.log(`PASS: session ${cycle}, retake, filter, S3, fullscreen, JPEG, gallery, stream cleanup`);

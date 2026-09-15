@@ -1,3 +1,5 @@
+export const S3_PRODUCT = { price: 169, currency: "RUB" } as const;
+
 export const PRINT_PRICE_RUB = 49;
 export const SHIPPING_PRICE_RUB = 29;
 export const EXTRA_AFTER = 5;

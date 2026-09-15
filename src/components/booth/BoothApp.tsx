@@ -8,7 +8,7 @@ import { GalleryRail } from "@/components/booth/GalleryRail";
 import { LayoutPicker } from "@/components/booth/LayoutPicker";
 import { OrderPane } from "@/components/booth/OrderPane";
 import { ReviewPane } from "@/components/booth/ReviewPane";
-import { compressDataUrl, downloadDataUrl } from "@/lib/compose";
+import { compressDataUrl } from "@/lib/compose";
 import type { FilterId } from "@/lib/filters";
 import {
   BOOTH_LAYOUTS,
@@ -288,7 +288,7 @@ function SessionFlow({
           />
         </div>
       )}
-      {step === "review" && !retake && galleryError && <AsyncNotice error message="Не удалось добавить ленточку в недавние фото. Скачайте JPEG с этого экрана." />}
+      {step === "review" && !retake && galleryError && <AsyncNotice error message="Не удалось добавить ленточку в недавние фото. Подготовьте и скачайте файл для печати с этого экрана." />}
 
       {step === "order" && layout && (
         <OrderPane
@@ -369,16 +369,6 @@ function SuccessPane({
         />
       )}
       <div className="flex flex-wrap justify-center gap-2">
-        {composite && (
-          <Button
-            variant="outline"
-            onClick={() =>
-              downloadDataUrl(composite, `inc-soul-${orderNumber}.jpg`)
-            }
-          >
-            Скачать макет
-          </Button>
-        )}
         <Button onClick={onAgain}>Снять ещё</Button>
         <Button variant="ghost" asChild>
           <Link to="/cabinet">В кабинет</Link>

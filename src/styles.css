@@ -225,16 +225,24 @@
 }
 
 [data-booth-mode="workspace"] .camera-viewfinder {
-  /* Width follows its existing photo-slot aspect ratio; height is bounded
-     by the grid cell, so the displayed crop stays identical on every screen. */
-  width: min(100%, calc(100cqh * var(--camera-aspect)));
-  height: auto;
+  /* Both dimensions depend on the preview area, never on video metadata.
+     The inner crop matches the photo slot; the outer S3 viewport stays square. */
+  width: min(100cqw, calc(100cqh * var(--camera-viewport-aspect)));
+  height: min(100cqh, calc(100cqw / var(--camera-viewport-aspect)));
+  min-width: 0;
+  min-height: 0;
   max-width: 100%;
   max-height: 100%;
-  flex: 0 1 auto;
+  flex: none;
 }
 
 [data-booth-mode="workspace"] .camera-viewfinder video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
   display: block;
 }
 
@@ -396,18 +404,6 @@
   margin-top: 0.5rem;
 }
 
-/* Expanded export details need document space, including on narrow phones.
-   Keep the preview visible instead of letting the fixed viewport grid collapse it. */
-[data-booth-mode="workspace"] > .booth-frame:has(.review-secondary[open]) {
-  height: auto;
-  min-height: 100dvh;
-  padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
-}
-
-[data-booth-mode="workspace"] .review-body:has(.review-secondary[open]) .review-preview {
-  height: clamp(14rem, 45dvh, 32rem);
-}
-
 @media (min-width: 768px) {
   [data-booth-mode] > .booth-frame {
     padding-inline: clamp(1.5rem, 4vw, 3rem);
@@ -440,5 +436,84 @@
 
   [data-booth-mode="workspace"] :is(.camera-preview, .review-preview) {
     height: clamp(12rem, 45dvh, 24rem);
+  }
+}
+
+/* A finished photo deserves document space. A hidden review during retake
+   must not affect the camera grid. The strip keeps its native 1:3 ratio. */
+[data-booth-mode="workspace"] > .booth-frame:has(.review-stage):not(:has(.camera-stage)) {
+  height: auto;
+  min-height: 100dvh;
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
+  grid-template-rows: auto 1fr;
+}
+
+[data-booth-mode="workspace"] .review-stage {
+  grid-template-rows: auto 1fr;
+  align-self: start;
+}
+
+[data-booth-mode="workspace"] .review-body {
+  grid-template-rows: auto auto;
+}
+
+[data-booth-mode="workspace"] .review-preview {
+  height: auto;
+  align-self: start;
+}
+
+[data-booth-mode="workspace"] .review-paper,
+[data-booth-mode="workspace"] .review-enlarge {
+  height: auto;
+}
+
+[data-booth-mode="workspace"] .review-strip {
+  width: min(100%, 17rem);
+  height: auto;
+  max-height: none;
+  aspect-ratio: 1 / 3;
+}
+
+[data-booth-mode="workspace"] .review-controls .booth-filters {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+[data-booth-mode="workspace"] .print-master :is(a, button) {
+  min-height: 2.75rem;
+  white-space: normal;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  [data-booth-mode="workspace"] .review-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+
+  [data-booth-mode="workspace"] .review-controls {
+    align-self: start;
+  }
+
+  [data-booth-mode="workspace"] .review-strip {
+    width: min(100%, 24rem);
+  }
+}
+
+@media (min-width: 900px) {
+  [data-booth-mode="workspace"] .review-body {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    grid-template-rows: auto;
+  }
+
+  [data-booth-mode="workspace"] .review-strip {
+    width: min(100%, max(18.75rem, calc((100dvh - 7rem) / 3)));
+  }
+}
+
+@media (min-width: 1280px) {
+  [data-booth-mode="workspace"] .review-strip {
+    width: min(100%, clamp(13rem, calc((100dvh - 11rem) / 3), 24rem));
   }
 }

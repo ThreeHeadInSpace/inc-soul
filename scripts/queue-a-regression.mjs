@@ -57,7 +57,7 @@ page.on("pageerror", (error) => errors.push(error.message));
 const results = { checks: [], errors };
 const pass = (name) => { results.checks.push(name); console.log(`PASS: ${name}`); };
 const cameraReady = () => page.waitForFunction(() => document.querySelector("video")?.readyState >= 2);
-const ready = () => page.waitForFunction(() => !!document.querySelector('a[download="inc-soul-layout-S3.jpg"]'));
+const ready = () => page.waitForFunction(() => document.querySelector(".review-stage")?.dataset.resultReady === "true");
 const shotSources = () => page.locator(".review-shots img").evaluateAll((imgs) => imgs.map((img) => img.src));
 const photo = async (color, width = 320, height = 240) => Buffer.from(await page.evaluate(({ color, width, height }) => {
   const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
@@ -83,7 +83,7 @@ try {
   for (const [width, height] of [[360, 800], [390, 844], [844, 390], [768, 1024], [1366, 768]]) {
     await page.setViewportSize({ width, height });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    for (const name of ["Снять кадр", "Серия ×3"]) {
+    for (const name of ["Снять кадр", "С таймером"]) {
       const box = await page.getByRole("button", { name, exact: true }).boundingBox();
       assert.ok(box.width >= 100 && box.height >= 44 && box.x >= 0 && box.x + box.width <= width);
     }
@@ -122,16 +122,18 @@ try {
   await page.evaluate(() => { window.__failEncode = true; });
   await page.locator(".review-controls").getByRole("button", { name: "Ч/Б", exact: true }).click();
   await page.getByText("Не удалось собрать ленточку. Ваши кадры сохранены на этом экране.").waitFor();
-  assert.equal(await page.locator('a[download="inc-soul-layout-S3.jpg"]').count(), 0);
+  assert.equal(await page.locator(".review-stage").getAttribute("data-result-ready"), "false");
+  assert.ok(await page.getByRole("button", { name: "Увеличить фотополоску", exact: true }).isDisabled());
   await page.getByRole("button", { name: "Повторить", exact: true }).click();
   await ready();
   assert.deepEqual(await shotSources(), shotsBeforeFailure);
-  pass("digital composition failure disables stale download; retry preserves source frames");
+  pass("digital composition failure disables stale result actions; retry preserves source frames");
   await page.locator(".review-secondary > summary").click();
   await page.evaluate(() => { window.__failPrint = true; });
   await page.getByRole("button", { name: "Подготовить для печати", exact: true }).click();
   await page.getByText(/Не удалось собрать файл для печати/).waitFor();
-  assert.ok(await page.getByRole("link", { name: "Скачать макет", exact: true }).isVisible());
+  assert.equal(await page.getByRole("link", { name: "Скачать макет", exact: true }).count(), 0);
+  assert.equal(await page.locator(".review-stage").getAttribute("data-result-ready"), "true");
   await page.evaluate(() => { window.__holdPrint = true; });
   await page.getByRole("button", { name: "Подготовить для печати", exact: true }).click();
   await page.waitForFunction(() => !!window.__releasePrint);

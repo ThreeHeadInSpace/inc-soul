@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Download, FolderPlus, RotateCcw, Share2, Truck, X } from "lucide-react";
+import { FolderPlus, RotateCcw, Share2, Truck, X } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "sonner";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FilterBar } from "@/components/booth/FilterBar";
@@ -18,8 +18,7 @@ import type { FilterId } from "@/lib/filters";
 import type { Layout } from "@/lib/layouts";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { saveStrip } from "@/lib/strips";
-import { SHIPPING_PRICE_RUB } from "@/lib/pricing";
-import { cn, formatRub } from "@/lib/utils";
+import { formatRub } from "@/lib/utils";
 
 export function ReviewPane({
   layout,
@@ -44,27 +43,28 @@ export function ReviewPane({
   const [composite, setComposite] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [dateLabel] = useState(() => new Date().toLocaleDateString("ru-RU"));
-  const [jpeg, setJpeg] = useState<{ source: string; file: File; url: string } | null>(null);
+  const [jpeg, setJpeg] = useState<{ source: string; file: File } | null>(null);
   const [working, setWorking] = useState(true);
   const [caption, setCaption] = useState("");
   const [captionLive, setCaptionLive] = useState("");
+  const renderInputs = useMemo(() => ({ layout, shots, filterId, caption, dateLabel }), [layout, shots, filterId, caption, dateLabel]);
+  const [completedInputs, setCompletedInputs] = useState<typeof renderInputs | null>(null);
   const [saving, setSaving] = useState(false);
   const [generationError, setGenerationError] = useState(false);
   const [generationAttempt, setGenerationAttempt] = useState(0);
-  const [downloadError, setDownloadError] = useState(false);
-  const [downloadAttempt, setDownloadAttempt] = useState(0);
-  const [downloadStarted, setDownloadStarted] = useState(false);
+  const [jpegError, setJpegError] = useState(false);
+  const [jpegAttempt, setJpegAttempt] = useState(0);
   const [saveError, setSaveError] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState(false);
   const sharingRef = useRef(false);
   const savingRef = useRef(false);
-  const generationPending = working || captionLive.trim() !== caption;
+  const generationPending = working || captionLive.trim() !== caption || (!generationError && completedInputs !== renderInputs);
   const resultReady = Boolean(composite) && !generationPending && !generationError;
   const onCompositeRef = useRef(onComposite);
   onCompositeRef.current = onComposite;
   const filename = `inc-soul-layout-${layout.id}.jpg`;
-  const blobUrl = jpeg?.source === composite ? jpeg.url : null;
+  const jpegReady = jpeg?.source === composite;
   const canShare = useMemo(() => {
     if (layout.id !== "S3" || !jpeg || typeof navigator === "undefined" ||
         typeof navigator.share !== "function" || typeof navigator.canShare !== "function") return false;
@@ -84,12 +84,12 @@ export function ReviewPane({
     let cancelled = false;
     setWorking(true);
     setGenerationError(false);
-    setDownloadStarted(false);
     void composeDigitalOutputs(layout, shots, filterId, { dateLabel, caption })
       .then((result) => {
         if (cancelled) return;
         setComposite(result.jpeg);
         setPreview(result.preview);
+        setCompletedInputs(renderInputs);
         onCompositeRef.current(result.jpeg);
       })
       .catch(() => {
@@ -101,29 +101,27 @@ export function ReviewPane({
     return () => {
       cancelled = true;
     };
-  }, [layout, shots, filterId, caption, dateLabel, generationAttempt]);
+  }, [layout, shots, filterId, caption, dateLabel, generationAttempt, renderInputs]);
 
   useEffect(() => {
     if (!composite) {
       setJpeg(null);
       return;
     }
-    setDownloadError(false);
+    setJpegError(false);
     setShareError(false);
     setJpeg(null);
     try {
-      // Download and Share use the same encoded JPEG, without another canvas export.
+      // Share uses the existing digital JPEG; print preparation is independent.
       const file = new File([dataUrlToBlob(composite)], filename, { type: "image/jpeg" });
-      const url = URL.createObjectURL(file);
-      setJpeg({ source: composite, file, url });
-      return () => URL.revokeObjectURL(url);
+      setJpeg({ source: composite, file });
     } catch {
-      setDownloadError(true);
+      setJpegError(true);
     }
-  }, [composite, downloadAttempt, filename]);
+  }, [composite, jpegAttempt, filename]);
 
   async function shareJpeg() {
-    if (sharingRef.current || !canShare || !jpeg || !blobUrl || !resultReady) return;
+    if (sharingRef.current || !canShare || !jpeg || !jpegReady || !resultReady) return;
     sharingRef.current = true;
     setSharing(true);
     setShareError(false);
@@ -175,22 +173,6 @@ export function ReviewPane({
 
   const isS3 = layout.id === "S3";
   const SecondaryActions = isS3 ? "details" : "div";
-  const downloadButton = blobUrl && resultReady ? (
-    <a
-      href={blobUrl}
-      download={filename}
-      onClick={() => setDownloadStarted(true)}
-      className={cn(buttonVariants({ variant: isS3 ? "ghost" : "primary", size: "lg" }))}
-    >
-      <Download className="size-4" />
-      Скачать макет
-    </a>
-  ) : (
-    <Button variant={isS3 ? "ghost" : "primary"} size="lg" disabled>
-      <Download className="size-4" />
-      {generationPending ? "Собираем ленточку…" : !blobUrl && !downloadError && resultReady ? "Готовим JPEG…" : "Скачать макет"}
-    </Button>
-  );
   const orderButton = user || !resultReady ? (
     <Button
       className={isS3 ? "review-order" : undefined}
@@ -214,7 +196,7 @@ export function ReviewPane({
   );
 
   return (
-    <div className="review-stage mx-auto flex w-full max-w-5xl flex-col gap-6">
+    <div data-result-ready={resultReady && jpegReady} className="review-stage mx-auto flex w-full max-w-5xl flex-col gap-6">
       <div className="review-heading flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-caps text-fg-subtle">
@@ -228,7 +210,7 @@ export function ReviewPane({
           </p>
         </div>
         <p className="text-sm text-fg-muted">
-          Печать {formatRub(layout.unitPrice)} + отправка {formatRub(SHIPPING_PRICE_RUB)}
+          Печать {formatRub(layout.unitPrice)}
         </p>
       </div>
 
@@ -303,19 +285,16 @@ export function ReviewPane({
             ))}
           </div>
           <div className="review-actions flex flex-col gap-2">
-            {isS3 ? orderButton : downloadButton}
+            {orderButton}
             {isS3 && retakeButton}
             {canShare && (
-              <Button variant="ghost" onClick={() => void shareJpeg()} disabled={!resultReady || !blobUrl || sharing}>
+              <Button variant="ghost" onClick={() => void shareJpeg()} disabled={!resultReady || !jpegReady || sharing}>
                 <Share2 className="size-4" />
                 {sharing ? "Открываем…" : "Поделиться"}
               </Button>
             )}
             <SecondaryActions className={isS3 ? "review-secondary" : "contents"}>
             {isS3 && <summary>Скачать / сохранить</summary>}
-            {isS3 && downloadButton}
-            {downloadError && <AsyncNotice error message="Не удалось подготовить JPEG для скачивания." onRetry={() => setDownloadAttempt((attempt) => attempt + 1)} />}
-            {downloadStarted && !downloadError && <AsyncNotice message="JPEG передан браузеру. Проверьте загрузки; если файл не появился, повторите скачивание." />}
             {saveError && <AsyncNotice error message={ACTION_ERROR} />}
             {user ? (
               <Button
@@ -331,12 +310,12 @@ export function ReviewPane({
                 <Link to="/login">Войти, чтобы сохранить</Link>
               </Button>
             )}
-            {!isS3 && orderButton}
             {isS3 && <PrintMasterAction layout={layout} shots={shots} filterId={filterId} caption={caption} dateLabel={dateLabel} ready={resultReady} />}
             </SecondaryActions>
             {!isS3 && retakeButton}
           </div>
-          {shareError && <AsyncNotice error message="Не удалось поделиться. Скачайте JPEG через «Скачать / сохранить»." />}
+          {jpegError && <AsyncNotice error message="Не удалось подготовить фото для отправки." onRetry={() => setJpegAttempt((attempt) => attempt + 1)} />}
+          {shareError && <AsyncNotice error message="Не удалось поделиться. Попробуйте ещё раз." />}
         </div>
       </div>
     </div>

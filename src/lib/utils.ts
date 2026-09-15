@@ -6,5 +6,5 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatRub(value: number) {
-  return `${value.toLocaleString("ru-RU")}₽`;
+  return `${value.toLocaleString("ru-RU")} ₽`;
 }

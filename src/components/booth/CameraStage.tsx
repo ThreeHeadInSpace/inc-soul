@@ -6,11 +6,12 @@ import {
   ImagePlus,
   RefreshCcw,
   SwitchCamera,
-  Aperture,
   Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FilterBar } from "@/components/booth/FilterBar";
+import { TimerControl } from "@/components/booth/TimerControl";
+import { readTimerPreference, saveTimerPreference, type TimerSeconds } from "@/lib/capture-timer";
 import { captureFrame, fileToDataUrl } from "@/lib/compose";
 import { getFilter, type FilterId } from "@/lib/filters";
 import type { Layout } from "@/lib/layouts";
@@ -41,6 +42,8 @@ export function CameraStage({
   const [flash, setFlash] = useState(false);
   const [busy, setBusy] = useState(false);
   const [series, setSeries] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState<TimerSeconds>(3);
+  const sequenceSeconds = useRef<TimerSeconds>(3);
   const [uploading, setUploading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const uploadRef = useRef(false);
@@ -59,13 +62,15 @@ export function CameraStage({
   const nextIndex = shots.findIndex((s) => !s);
   const done = filled >= layout.poses;
   const live = camera.status === "ready";
-  const slot = layout.slots.find((s) => s.type === "photo" && s.i === nextIndex);
+  const slot = layout.slots.find((s) => s.type === "photo" && s.i === (nextIndex < 0 ? 0 : nextIndex));
   const previewAspect = layout.id === "S3" && slot
     ? (slot.w * layout.width) / (slot.h * layout.height)
     : 16 / 9;
+  const viewportAspect = layout.id === "S3" ? 1 : previewAspect;
 
   useEffect(() => {
     activeRef.current = true;
+    setTimerSeconds(readTimerPreference());
     void camera.start("user");
     return () => {
       activeRef.current = false;
@@ -75,6 +80,22 @@ export function CameraStage({
     // start once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const cancelSequence = () => {
+      autoRef.current = false;
+      setSeries(false);
+      setCount(null);
+    };
+    const onVisibility = () => { if (document.hidden) cancelSequence(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", cancelSequence);
+    if (!live) cancelSequence();
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", cancelSequence);
+    };
+  }, [live]);
 
   useEffect(() => {
     if (done && !completedRef.current) {
@@ -99,12 +120,12 @@ export function CameraStage({
   useEffect(() => {
     if (!series || !autoRef.current || !live || count !== null || busy || done) return;
     if (nextIndex === -1) return;
-    const timer = window.setTimeout(() => setCount(3), 640);
+    const timer = window.setTimeout(() => setCount(sequenceSeconds.current), 640);
     return () => window.clearTimeout(timer);
   }, [busy, count, done, live, nextIndex, filled, series]);
 
   async function snap() {
-    if (takingRef.current || uploadRef.current || !activeRef.current) return;
+    if (takingRef.current || uploadRef.current || !activeRef.current || document.hidden) return;
     const video = camera.videoRef.current;
     if (!video || camera.status !== "ready" || !video.videoWidth || !video.videoHeight || video.readyState < 2) {
       autoRef.current = false;
@@ -149,12 +170,15 @@ export function CameraStage({
     void snap();
   }
 
-  function beginSession() {
+  function beginSession(seconds: TimerSeconds) {
     if (!live || done || count !== null || takingRef.current || uploadRef.current || autoRef.current) return;
     setActionError(null);
+    sequenceSeconds.current = seconds;
+    setTimerSeconds(seconds);
+    saveTimerPreference(seconds);
     autoRef.current = true;
     setSeries(true);
-    setCount(3);
+    setCount(seconds);
   }
 
   async function onUpload(list: FileList | null) {
@@ -209,8 +233,9 @@ export function CameraStage({
       </div>
 
       <div className="camera-body contents">
-      <div className="camera-preview overflow-hidden rounded-2xl bg-bg-elevated p-2 shadow-[var(--shadow-border)]" style={{ "--camera-aspect": previewAspect } as CSSProperties}>
-        <div className="camera-viewfinder relative overflow-hidden rounded-xl bg-bg" style={{ aspectRatio: previewAspect }}>
+      <div className="camera-preview overflow-hidden rounded-2xl bg-bg-elevated p-2 shadow-[var(--shadow-border)]" style={{ "--camera-viewport-aspect": viewportAspect } as CSSProperties}>
+        <div className="camera-viewfinder relative overflow-hidden rounded-xl bg-bg" style={{ aspectRatio: viewportAspect }}>
+          <div className="camera-crop absolute inset-x-0 top-1/2 -translate-y-1/2 overflow-hidden" style={{ height: `${100 * viewportAspect / previewAspect}%` }}>
           <video
             ref={camera.videoRef}
             className={cn(
@@ -225,6 +250,7 @@ export function CameraStage({
             muted
             autoPlay
           />
+          </div>
 
           {!live && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
@@ -306,16 +332,8 @@ export function CameraStage({
             {busy && !series ? "Сохраняем кадр…" : "Снять кадр"}
           </Button>
         )}
-        <Button
-          size="lg"
-          className="capture-action"
-          variant={layout.id === "S3" ? "outline" : "primary"}
-          onClick={beginSession}
-          disabled={!live || done || count !== null || busy || uploading || series}
-        >
-          <Aperture className="size-5" />
-          {layout.id === "S3" ? retakingRef.current ? "С таймером" : filled === 0 ? "Серия ×3" : `Серия · ещё ${layout.poses - filled}` : busy ? "Сохраняем кадр…" : retakingRef.current ? `Переснять кадр ${nextIndex + 1}` : filled === 0 ? "Снять серию" : "Следующий кадр"}
-        </Button>
+        <TimerControl seconds={timerSeconds} onStart={beginSession}
+          disabled={!live || done || count !== null || busy || uploading || series} />
         {camera.canSwitch && (
           <Button
             variant="outline"
@@ -353,7 +371,6 @@ export function CameraStage({
           }}
         />
       </div>
-      {layout.id === "S3" && <p className="text-center text-xs text-fg-muted">Снять кадр — сразу. Серия — 3 секунды перед каждым кадром.</p>}
       </div>
       </div>
     </div>
