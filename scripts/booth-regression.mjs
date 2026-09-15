@@ -6,7 +6,7 @@ import { chromium } from "playwright";
 // Run against an already running local dev server. Chromium supplies a test camera;
 // permission prompts and native OS share sheets still need a real-device check.
 const phase = process.argv.includes("--baseline") ? "baseline" : "final";
-const output = new URL(`../artifacts/sep15/${phase}/`, import.meta.url);
+const output = new URL(`../artifacts/queue-a/${process.env.REGRESSION_LABEL || phase}/`, import.meta.url);
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome", args: ["--use-fake-device-for-media-stream", "--disable-gpu"] });
 const context = await browser.newContext({ permissions: ["camera"], viewport: { width: 1366, height: 768 } });
@@ -25,10 +25,15 @@ await context.addInitScript((testShare) => {
     return stream;
   };
   const encode = HTMLCanvasElement.prototype.toDataURL;
+  const draw = CanvasRenderingContext2D.prototype.drawImage;
+  CanvasRenderingContext2D.prototype.drawImage = function (source, ...args) {
+    if (source instanceof HTMLVideoElement) this.canvas.__sourceFrame = true;
+    return draw.call(this, source, ...args);
+  };
   window.__compositions = 0;
   HTMLCanvasElement.prototype.toDataURL = function (...args) {
     const data = encode.apply(this, args);
-    if (args[1] === 0.88) window.__captures.push(data);
+    if (this.__sourceFrame) window.__captures.push(data);
     if (args[1] === 0.93) window.__compositions++;
     return data;
   };
@@ -88,7 +93,7 @@ async function verifyCancellation(original) {
     await cameraReady();
     await page.locator(".camera-stage").getByRole("button", { name: "Холодный", exact: true }).click();
     if (slot === 2) {
-      await page.locator(".camera-actions").getByRole("button", { name: "Переснять кадр 2", exact: true }).click();
+      await page.locator(".camera-actions").getByRole("button", { name: "С таймером", exact: true }).click();
       await page.locator(".count-pop").waitFor();
     }
     await page.locator(".camera-toolbar").getByRole("button", { name: "Отмена", exact: true }).click();
@@ -120,7 +125,7 @@ async function verifyCancellation(original) {
   await page.evaluate(() => window.__finishUpload());
   await page.waitForFunction(() => window.__uploadFinished);
   assert.equal(await page.locator(".camera-shots img").count(), 2);
-  assert.ok(await page.locator(".camera-actions").getByRole("button", { name: "Переснять кадр 3", exact: true }).isVisible());
+  assert.ok(await page.locator(".camera-actions").getByRole("button", { name: "Снять кадр", exact: true }).isVisible());
   await page.locator(".camera-toolbar").getByRole("button", { name: "Отмена", exact: true }).click();
   await page.locator(".review-stage").waitFor({ state: "visible" });
   assert.deepEqual(await shotSources(), original);
@@ -182,8 +187,8 @@ async function verifyShare() {
   await ready();
   await share.click();
   const shared = await page.evaluate(async () => Array.from(new Uint8Array(await window.__sharedFiles[0].arrayBuffer())));
-  const src = await page.getByAltText("Макет S3", { exact: true }).getAttribute("src");
-  assert.deepEqual(Buffer.from(shared), Buffer.from(src.split(",")[1], "base64"));
+  const downloaded = await page.locator('a[download="inc-soul-layout-S3.jpg"]').evaluate(async (a) => Array.from(new Uint8Array(await (await fetch(a.href)).arrayBuffer())));
+  assert.deepEqual(shared, downloaded);
   results.share = { ...data, cases: "missing share/canShare; files unsupported; probe throws; abort; failure fallback; pending double click; updated JPEG" };
   console.log("PASS: Share capability, exact JPEG, activation, cancel, fallback, pending guard");
 }
@@ -196,14 +201,19 @@ async function downloadAndCheck(name) {
   await page.getByRole("link", { name: "Скачать макет", exact: true }).click();
   const download = await pending;
   const bytes = await readFile(await download.path());
-  const src = await page.getByAltText("Макет S3", { exact: true }).getAttribute("src");
-  assert.deepEqual(bytes, Buffer.from(src.split(",")[1], "base64"));
+  const digital = await page.locator('a[download="inc-soul-layout-S3.jpg"]').evaluate(async (a) => Array.from(new Uint8Array(await (await fetch(a.href)).arrayBuffer())));
+  assert.deepEqual(bytes, Buffer.from(digital));
+  assert.equal(bytes.readUInt16BE(0), 0xffd8);
+  assert.deepEqual(await page.evaluate(async (data) => {
+    const image = new Image(); image.src = `data:image/jpeg;base64,${data}`; await image.decode();
+    return [image.naturalWidth, image.naturalHeight];
+  }, bytes.toString("base64")), [520, 1560]);
   assert.equal(download.suggestedFilename(), "inc-soul-layout-S3.jpg");
   await writeFile(new URL(`${name}.jpg`, output), bytes);
   return bytes.length;
 }
 try {
-  await page.goto("http://localhost:8080/", { waitUntil: "domcontentloaded" });
+  await page.goto(process.env.BOOTH_BASE_URL || "http://localhost:8080/", { waitUntil: "domcontentloaded" });
   assert.ok(await page.getByRole("heading", { name: "Зайдите за занавес." }).isVisible());
   assert.equal(await page.locator("vite-error-overlay").count(), 0);
   await screenshot("home");
@@ -217,7 +227,25 @@ try {
     await cameraReady();
     assert.equal(await page.locator(".camera-shots img").count(), 0);
     const captureStart = await page.evaluate(() => window.__captures.length);
-    await page.getByRole("button", { name: "Снять серию", exact: true }).click();
+    if (phase === "baseline") {
+      await page.getByRole("button", { name: "Снять серию", exact: true }).click();
+    } else if (cycle === 1) {
+      await page.getByRole("button", { name: "Серия ×3", exact: true }).click();
+      await page.locator(".count-pop").waitFor();
+      assert.ok(await page.getByRole("button", { name: "Снять кадр", exact: true }).isDisabled());
+    } else {
+      for (let i = 1; i <= (cycle === 2 ? 3 : 1); i++) {
+        await page.getByRole("button", { name: "Снять кадр", exact: true }).click();
+        assert.equal(await page.locator(".count-pop").count(), 0);
+        await page.waitForFunction((count) => window.__captures.length === count, captureStart + i);
+        if (i < 3) {
+          await page.waitForTimeout(900);
+          assert.equal(await page.locator(".camera-shots img").count(), i);
+          assert.equal(await page.locator(".count-pop").count(), 0);
+        }
+      }
+      if (cycle === 3) await page.getByRole("button", { name: "Серия · ещё 2", exact: true }).click();
+    }
     await ready();
     const original = await shotSources();
     assert.deepEqual(await page.getByAltText("Макет S3", { exact: true }).evaluate((img) => [img.naturalWidth, img.naturalHeight]), [520, 1560]);
@@ -229,7 +257,7 @@ try {
     if (phase === "final" && cycle === 1) await verifyCancellation(original);
     await page.getByRole("button", { name: "Переснять кадр 2", exact: true }).click();
     await cameraReady();
-    await page.locator(".camera-actions").getByRole("button", { name: "Переснять кадр 2", exact: true }).click();
+    await page.locator(".camera-actions").getByRole("button", { name: phase === "baseline" ? "Переснять кадр 2" : cycle === 2 ? "С таймером" : "Снять кадр", exact: true }).click();
     await ready();
     const retaken = await shotSources();
     assert.equal(retaken[0], original[0]);
@@ -247,7 +275,7 @@ try {
     await page.getByRole("button", { name: "Закрыть просмотр" }).click();
     const bytes = await downloadAndCheck(`session-${cycle}`);
     await page.waitForFunction((count) => JSON.parse(localStorage.getItem("incsoul-gallery"))?.state.items.length === count, cycle);
-    results.sessions.push({ cycle, captures: 3, retake: "only slot 2", jpegBytes: bytes, galleryCount: (await gallery()).length, streamReleased: true });
+    results.sessions.push({ cycle, mode: phase === "baseline" || cycle === 1 ? "series" : cycle === 2 ? "single ×3" : "single + remaining series", captures: 3, retake: "only slot 2", jpegBytes: bytes, galleryCount: (await gallery()).length, streamReleased: true });
     console.log(`PASS: session ${cycle}, retake, filter, S3, fullscreen, JPEG, gallery, stream cleanup`);
     if (cycle === 1) {
       await page.locator(".review-secondary > summary").click();

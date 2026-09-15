@@ -1,7 +1,8 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/booth/AppHeader";
+import { AsyncNotice } from "@/components/booth/AsyncNotice";
 import { CameraStage } from "@/components/booth/CameraStage";
 import { GalleryRail } from "@/components/booth/GalleryRail";
 import { LayoutPicker } from "@/components/booth/LayoutPicker";
@@ -50,7 +51,7 @@ export function HomeHub() {
           to="/booth"
           kicker="Три кадра"
           title="Начать фотобудку"
-          body="Откройте камеру и снимите серию — мы соберём фотографии в ленточку."
+          body="Откройте камеру и снимите три кадра — мы соберём фотографии в ленточку."
         />
       </div>
       <GalleryRail />
@@ -135,10 +136,22 @@ function SessionFlow({
   const addToGallery = useGallery((s) => s.add);
   const markOrdered = useGallery((s) => s.markOrdered);
   const [galleryId, setGalleryId] = useState<string | null>(null);
+  const galleryIdRef = useRef<string | null>(null);
+  const galleryRevisionRef = useRef(0);
+  const [galleryError, setGalleryError] = useState(false);
+  useEffect(() => () => { galleryRevisionRef.current += 1; }, []);
+
+  function resetGallerySession() {
+    galleryRevisionRef.current += 1;
+    galleryIdRef.current = null;
+    setGalleryId(null);
+    setGalleryError(false);
+  }
 
   const layout = layoutId ? layouts.find((l) => l.id === layoutId) ?? null : null;
 
   const pickLayout = (next: Layout) => {
+    resetGallerySession();
     setLayoutId(next.id);
     setShots(Array.from({ length: next.poses }, () => null));
     setComposite(null);
@@ -149,16 +162,19 @@ function SessionFlow({
   const handleComposite = useCallback(async (url: string) => {
     setComposite(url);
     if (!layoutId) return;
-    const thumb = await compressDataUrl(url, 720, 0.72);
-    const id = galleryId ?? `g-${Date.now()}`;
-    if (!galleryId) setGalleryId(id);
-    addToGallery({
-      id,
-      layoutId,
-      filterId,
-      composite: thumb,
-    });
-  }, [addToGallery, filterId, galleryId, layoutId]);
+    const revision = ++galleryRevisionRef.current;
+    const id = galleryIdRef.current ?? `g-${crypto.randomUUID()}`;
+    galleryIdRef.current = id;
+    setGalleryId(id);
+    setGalleryError(false);
+    try {
+      const thumb = await compressDataUrl(url, 720, 0.72);
+      if (revision !== galleryRevisionRef.current) return;
+      addToGallery({ id, layoutId, filterId, composite: thumb });
+    } catch {
+      if (revision === galleryRevisionRef.current) setGalleryError(true);
+    }
+  }, [addToGallery, filterId, layoutId]);
 
   function retakeSlot(index: number) {
     if (layout?.id === "S3" && shots[index]) {
@@ -181,7 +197,7 @@ function SessionFlow({
     if (!layout) return;
     setShots(Array.from({ length: layout.poses }, () => null));
     setComposite(null);
-    setGalleryId(null);
+    resetGallerySession();
     setStep("shoot");
   }
 
@@ -191,7 +207,7 @@ function SessionFlow({
     setShots(Array.from({ length: fixedLayout?.poses ?? 0 }, () => null));
     setComposite(null);
     setOrderNumber(null);
-    setGalleryId(null);
+    resetGallerySession();
     setFilterId("none");
   }
 
@@ -272,6 +288,7 @@ function SessionFlow({
           />
         </div>
       )}
+      {step === "review" && !retake && galleryError && <AsyncNotice error message="Не удалось добавить ленточку в недавние фото. Скачайте JPEG с этого экрана." />}
 
       {step === "order" && layout && (
         <OrderPane

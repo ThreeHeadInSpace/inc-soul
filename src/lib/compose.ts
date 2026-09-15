@@ -1,5 +1,6 @@
 import { getFilter, type FilterId } from "@/lib/filters";
 import type { Layout } from "@/lib/layouts";
+import { assessPrintSources, pngWithDpi, printDimensions, S3_PRINT_CANDIDATE, type PrintSpec } from "@/lib/print-output";
 
 export type ComposeMeta = {
   orderNumber?: string;
@@ -141,22 +142,27 @@ function drawBrand(
   ctx.restore();
 }
 
-export async function composeLayout(
+async function renderLayout(
   layout: Layout,
   shots: Array<string | null>,
   filterId: FilterId,
   meta: ComposeMeta = {},
-): Promise<string> {
+  pixels = { width: layout.width, height: layout.height },
+) {
   await ensureFonts();
   const canvas = document.createElement("canvas");
-  canvas.width = layout.width;
-  canvas.height = layout.height;
+  canvas.width = pixels.width;
+  canvas.height = pixels.height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas недоступен");
+  // Draw in layout coordinates: type, borders and crop scale together.
+  ctx.scale(pixels.width / layout.width, pixels.height / layout.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
 
   const paper = layout.kind === "instant" ? PHOTO_WHITE : PAPER;
   ctx.fillStyle = paper;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, layout.width, layout.height);
 
   const images = await Promise.all(
     shots.map((src) => (src ? loadImage(src) : Promise.resolve(null))),
@@ -164,10 +170,10 @@ export async function composeLayout(
   const filter = getFilter(filterId).css;
 
   for (const slot of layout.slots) {
-    const x = slot.x * canvas.width;
-    const y = slot.y * canvas.height;
-    const w = slot.w * canvas.width;
-    const h = slot.h * canvas.height;
+    const x = slot.x * layout.width;
+    const y = slot.y * layout.height;
+    const w = slot.w * layout.width;
+    const h = slot.h * layout.height;
 
     if (slot.type === "brand") {
       drawBrand(ctx, x, y, w, h, meta, paper, layout.id === "S3");
@@ -191,7 +197,41 @@ export async function composeLayout(
     ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
   }
 
+  return { canvas, images };
+}
+
+// Existing digital export contract used by download, Share and future order flows.
+export async function composeLayout(layout: Layout, shots: Array<string | null>, filterId: FilterId, meta: ComposeMeta = {}) {
+  const { canvas } = await renderLayout(layout, shots, filterId, meta);
   return canvas.toDataURL("image/jpeg", 0.93);
+}
+
+export async function composeDigitalOutputs(layout: Layout, shots: Array<string | null>, filterId: FilterId, meta: ComposeMeta = {}) {
+  const { canvas } = await renderLayout(layout, shots, filterId, meta);
+  // Lossless screen preview and the established JPEG share a render, not an encoding.
+  return { preview: canvas.toDataURL("image/png"), jpeg: canvas.toDataURL("image/jpeg", 0.93) };
+}
+
+export async function composePrintMaster(
+  layout: Layout,
+  shots: Array<string | null>,
+  filterId: FilterId,
+  meta: ComposeMeta = {},
+  spec: PrintSpec = S3_PRINT_CANDIDATE,
+) {
+  const pixels = printDimensions(spec);
+  // Reject mismatched dimensions before allocating the high resolution canvas.
+  assessPrintSources(layout, [], spec);
+  if (layout.slots.some((slot) => slot.type === "photo" && !shots[slot.i])) {
+    throw new Error("Для печати нужны все исходные кадры");
+  }
+  const { canvas, images } = await renderLayout(layout, shots, filterId, meta, pixels);
+  const quality = assessPrintSources(layout, images.map((img) => img ? { width: img.naturalWidth, height: img.naturalHeight } : null), spec);
+  const png = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Не удалось подготовить PNG")), "image/png");
+  });
+  const blob = await pngWithDpi(png, spec.dpi);
+  return { blob, quality, candidate: true as const };
 }
 
 export async function captureFrame(
@@ -199,8 +239,9 @@ export async function captureFrame(
   mirrored: boolean,
 ): Promise<string> {
   const canvas = document.createElement("canvas");
-  const vw = video.videoWidth || 1280;
-  const vh = video.videoHeight || 720;
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh || video.readyState < 2) throw new Error("Камера ещё готовится");
   canvas.width = vw;
   canvas.height = vh;
   const ctx = canvas.getContext("2d");
@@ -210,13 +251,18 @@ export async function captureFrame(
     ctx.scale(-1, 1);
   }
   ctx.drawImage(video, 0, 0, vw, vh);
-  return canvas.toDataURL("image/jpeg", 0.88);
+  // Retain every available source pixel without an intermediate JPEG compression.
+  return canvas.toDataURL("image/png");
 }
 
 export async function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
+    reader.onload = () => {
+      const source = String(reader.result);
+      // Reject corrupt uploads here so a broken frame cannot trap the review.
+      void loadImage(source).then(() => resolve(source), reject);
+    };
     reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
     reader.readAsDataURL(file);
   });

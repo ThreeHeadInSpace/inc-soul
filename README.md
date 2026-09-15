@@ -1,12 +1,16 @@
 # inc&soul
 
-Фотобудка и печать Polaroid / Instax / фотосалона до А3.
+Текущий MVP — фотобудка S3: три снимка в одной вертикальной ленточке.
 
-- Живая камера, фильтры, обратный отсчёт
-- Классические ленточки из будки
-- Polaroid, Instax Mini / Square / Wide и размеры до A3
-- Личный кабинет (Google, X, почта)
-- Заказ печати с доставкой Почтой России
+- «Снять кадр» — один снимок сразу; «Серия ×3» — три снимка с отсчётом.
+- Фильтры, подпись, пересъёмка любого кадра с отменой, полноэкранный просмотр.
+- Цифровой JPEG 520 × 1560, скачивание, Web Share при поддержке браузером.
+- Отдельный candidate PNG для печати из исходных кадров; текущий пробный размер
+  50,8 × 152,4 мм при 300 DPI (600 × 1800 px).
+
+Физический размер и качество печати ещё требуют проверки владельцем. При
+недостаточном разрешении кадров интерфейс показывает ограничение качества.
+Код остальных макетов, кабинета и заказа сохранён для следующих этапов.
 
 ```bash
 npm install
@@ -152,6 +156,7 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
+node scripts/check-preview-build.mjs
 ```
 
 Для проверки только артефактов сборки запускайте последнюю команду без
@@ -172,3 +177,21 @@ Output Directory оставьте без override: не задавайте `dist
 Документация: [Git integration и Production Branch](https://vercel.com/docs/git),
 [ограничение веток](https://vercel.com/docs/project-configuration/git-configuration),
 [Build Output API](https://vercel.com/docs/build-output-api).
+
+## Queue A: capture и печатный файл
+
+Подробности реализации, baseline, результаты regression, ограничения и rollback:
+[отчёт Queue A](docs/queue-a-v0.0.5.md).
+
+Проверки браузером (установленный Chrome, синтетическая камера, без физических
+устройств): при работающем `npm run dev` запустите
+`node scripts/booth-regression.mjs`, `node scripts/queue-a-regression.mjs` и
+`node scripts/output-regression.mjs`. Первые два скрипта также работают с
+`BOOTH_BASE_URL`, указывающим на `npm run preview`; последний использует модули
+Vite для проверки canvas по известным исходным пикселям. Артефакты записываются
+в игнорируемый `artifacts/queue-a/`.
+
+Nitro сохраняет PGLite внешним пакетом вместе с WASM/data-файлами через
+`traceDeps`. `check-preview-build.mjs` проверяет запуск именно упакованной копии,
+маршрутизацию Build Output API и Node.js 24. Это проверка локальной сборки;
+production по-прежнему требует отдельного одобрения.

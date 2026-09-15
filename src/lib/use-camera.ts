@@ -46,8 +46,9 @@ export function useCamera() {
         audio: false,
         video: {
           facingMode: exact ? { exact: requested } : { ideal: requested },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          // Prefer a detailed source; ideal constraints still allow smaller cameras.
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
         },
       });
       let switchFailed = false;

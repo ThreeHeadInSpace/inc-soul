@@ -7,6 +7,7 @@ import {
   RefreshCcw,
   SwitchCamera,
   Aperture,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FilterBar } from "@/components/booth/FilterBar";
@@ -39,12 +40,16 @@ export function CameraStage({
   const [count, setCount] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [series, setSeries] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const uploadRef = useRef(false);
   const autoRef = useRef(false);
   const takingRef = useRef(false);
   const completedRef = useRef(false);
+  const activeRef = useRef(true);
+  const flashTimerRef = useRef<number | undefined>(undefined);
+  const snapRef = useRef<() => Promise<void>>(async () => {});
   const fileRef = useRef<HTMLInputElement>(null);
   const shotsRef = useRef(shots);
   const retakingRef = useRef(layout.poses > 1 && shots.filter(Boolean).length === layout.poses - 1);
@@ -60,7 +65,13 @@ export function CameraStage({
     : 16 / 9;
 
   useEffect(() => {
+    activeRef.current = true;
     void camera.start("user");
+    return () => {
+      activeRef.current = false;
+      autoRef.current = false;
+      window.clearTimeout(flashTimerRef.current);
+    };
     // start once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -76,7 +87,7 @@ export function CameraStage({
     if (count === null) return;
     if (count === 0) {
       setCount(null);
-      void snap();
+      void snapRef.current();
       return;
     }
     const timer = window.setTimeout(() => {
@@ -86,18 +97,18 @@ export function CameraStage({
   }, [count]);
 
   useEffect(() => {
-    if (!autoRef.current || !live || count !== null || busy || done) return;
+    if (!series || !autoRef.current || !live || count !== null || busy || done) return;
     if (nextIndex === -1) return;
     const timer = window.setTimeout(() => setCount(3), 640);
     return () => window.clearTimeout(timer);
-  }, [busy, count, done, live, nextIndex, filled]);
+  }, [busy, count, done, live, nextIndex, filled, series]);
 
   async function snap() {
-    if (takingRef.current) return;
+    if (takingRef.current || uploadRef.current || !activeRef.current) return;
     const video = camera.videoRef.current;
-    if (!video || camera.status !== "ready") return;
-    if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
+    if (!video || camera.status !== "ready" || !video.videoWidth || !video.videoHeight || video.readyState < 2) {
       autoRef.current = false;
+      setSeries(false);
       setActionError("Камера ещё готовится. Повторите снимок.");
       return;
     }
@@ -107,38 +118,54 @@ export function CameraStage({
     setFlash(true);
     try {
       const frame = await captureFrame(video, camera.facingMode === "user");
+      if (!activeRef.current) return;
       const current = shotsRef.current;
       const idx = current.findIndex((s) => !s);
       if (idx !== -1) {
         const next = [...current];
         next[idx] = frame;
+        shotsRef.current = next;
         onShots(next);
       }
     } catch {
       autoRef.current = false;
-      setActionError("Не удалось снять кадр. Повторите попытку.");
+      if (activeRef.current) {
+        setSeries(false);
+        setActionError("Не удалось снять кадр. Повторите попытку.");
+      }
     } finally {
-      window.setTimeout(() => setFlash(false), 360);
       takingRef.current = false;
-      setBusy(false);
+      if (activeRef.current) {
+        window.clearTimeout(flashTimerRef.current);
+        flashTimerRef.current = window.setTimeout(() => setFlash(false), 360);
+        setBusy(false);
+      }
     }
+  }
+  snapRef.current = snap;
+
+  function takeSingle() {
+    if (!live || done || count !== null || takingRef.current || uploadRef.current || autoRef.current) return;
+    void snap();
   }
 
   function beginSession() {
-    if (!live || done || count !== null || busy || uploadRef.current) return;
+    if (!live || done || count !== null || takingRef.current || uploadRef.current || autoRef.current) return;
     setActionError(null);
     autoRef.current = true;
+    setSeries(true);
     setCount(3);
   }
 
   async function onUpload(list: FileList | null) {
-    if (!list?.length || uploadRef.current) return;
+    if (!list?.length || uploadRef.current || takingRef.current || autoRef.current) return;
     uploadRef.current = true;
     setUploading(true);
     setActionError(null);
     try {
     const files = Array.from(list).slice(0, layout.poses);
     const urls = await Promise.all(files.map(fileToDataUrl));
+    if (!activeRef.current) return;
     const next = [...shotsRef.current];
     let cursor = 0;
     for (let i = 0; i < next.length && cursor < urls.length; i += 1) {
@@ -147,12 +174,13 @@ export function CameraStage({
         cursor += 1;
       }
     }
+    shotsRef.current = next;
     onShots(next);
     } catch {
-      setActionError(ACTION_ERROR);
+      if (activeRef.current) setActionError(ACTION_ERROR);
     } finally {
       uploadRef.current = false;
-      setUploading(false);
+      if (activeRef.current) setUploading(false);
     }
   }
 
@@ -247,7 +275,7 @@ export function CameraStage({
           <button
             key={i}
             type="button"
-            disabled={retakingRef.current || count !== null || busy || uploading}
+            disabled={retakingRef.current || count !== null || busy || uploading || series}
             onClick={() => {
               const next = [...shots];
               next[i] = null;
@@ -272,13 +300,21 @@ export function CameraStage({
       </div>
 
       <div className="camera-actions flex flex-col items-center justify-center gap-2 sm:flex-row">
+        {layout.id === "S3" && (
+          <Button size="lg" className="capture-action" onClick={takeSingle} disabled={!live || done || count !== null || busy || uploading || series}>
+            <Camera className="size-5" />
+            {busy && !series ? "Сохраняем кадр…" : "Снять кадр"}
+          </Button>
+        )}
         <Button
           size="lg"
+          className="capture-action"
+          variant={layout.id === "S3" ? "outline" : "primary"}
           onClick={beginSession}
-          disabled={!live || done || count !== null || busy || uploading}
+          disabled={!live || done || count !== null || busy || uploading || series}
         >
           <Aperture className="size-5" />
-          {busy ? "Сохраняем кадр…" : retakingRef.current ? `Переснять кадр ${nextIndex + 1}` : filled === 0 ? "Снять серию" : "Следующий кадр"}
+          {layout.id === "S3" ? retakingRef.current ? "С таймером" : filled === 0 ? "Серия ×3" : `Серия · ещё ${layout.poses - filled}` : busy ? "Сохраняем кадр…" : retakingRef.current ? `Переснять кадр ${nextIndex + 1}` : filled === 0 ? "Снять серию" : "Следующий кадр"}
         </Button>
         {camera.canSwitch && (
           <Button
@@ -317,6 +353,7 @@ export function CameraStage({
           }}
         />
       </div>
+      {layout.id === "S3" && <p className="text-center text-xs text-fg-muted">Снять кадр — сразу. Серия — 3 секунды перед каждым кадром.</p>}
       </div>
       </div>
     </div>

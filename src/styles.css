@@ -254,8 +254,9 @@
   gap: 0.5rem;
 }
 
-[data-booth-mode="workspace"] .camera-actions > button:first-child {
-  flex: 1 0 100%;
+[data-booth-mode="workspace"] .camera-actions > .capture-action {
+  flex: 1 1 calc(50% - 0.5rem);
+  padding-inline: 0.5rem;
 }
 
 [data-booth-mode="workspace"] .review-heading {
@@ -393,6 +394,18 @@
   display: flex;
   width: 100%;
   margin-top: 0.5rem;
+}
+
+/* Expanded export details need document space, including on narrow phones.
+   Keep the preview visible instead of letting the fixed viewport grid collapse it. */
+[data-booth-mode="workspace"] > .booth-frame:has(.review-secondary[open]) {
+  height: auto;
+  min-height: 100dvh;
+  padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
+}
+
+[data-booth-mode="workspace"] .review-body:has(.review-secondary[open]) .review-preview {
+  height: clamp(14rem, 45dvh, 32rem);
 }
 
 @media (min-width: 768px) {

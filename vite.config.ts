@@ -11,9 +11,9 @@ import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
-import { version } from "./package.json";
+import packageInfo from "./package.json" with { type: "json" };
 
-const appVersionLabel = `v${version}${
+const appVersionLabel = `v${packageInfo.version}${
   process.env.VERCEL_ENV === "preview" && process.env.VERCEL_GIT_COMMIT_REF === "pre-prod"
     ? " · pre-prod"
     : ""
@@ -185,6 +185,9 @@ export default defineConfig(({ command, isPreview }) => ({
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.
             serverDir: "./server",
+            // Keep PGLite beside its WASM/data files. Bundling into _libs breaks
+            // its import.meta.url lookups when Preview has no DATABASE_URL.
+            traceDeps: ["@electric-sql/pglite*"],
           }),
         ]
       : []),

@@ -55,6 +55,8 @@ test("camera defaults to front, stops before switching, and releases on unmount"
   const h = harness(media(async (constraints) => {
     if (calls++ === 0) {
       assert.equal(constraints.video.facingMode.ideal, "user");
+      assert.equal(constraints.video.width.ideal, 3840);
+      assert.equal(constraints.video.height.ideal, 2160);
       return front;
     }
     assert.equal(front.track.stopped, true);

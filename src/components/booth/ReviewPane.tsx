@@ -7,10 +7,11 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FilterBar } from "@/components/booth/FilterBar";
+import { PrintMasterAction } from "@/components/booth/PrintMasterAction";
 import { ACTION_ERROR, AsyncNotice } from "@/components/booth/AsyncNotice";
 import {
   dataUrlToBlob,
-  composeLayout,
+  composeDigitalOutputs,
   compressDataUrl,
 } from "@/lib/compose";
 import type { FilterId } from "@/lib/filters";
@@ -41,6 +42,8 @@ export function ReviewPane({
 }) {
   const user = useCurrentUser();
   const [composite, setComposite] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [dateLabel] = useState(() => new Date().toLocaleDateString("ru-RU"));
   const [jpeg, setJpeg] = useState<{ source: string; file: File; url: string } | null>(null);
   const [working, setWorking] = useState(true);
   const [caption, setCaption] = useState("");
@@ -82,12 +85,12 @@ export function ReviewPane({
     setWorking(true);
     setGenerationError(false);
     setDownloadStarted(false);
-    const dateLabel = new Date().toLocaleDateString("ru-RU");
-    void composeLayout(layout, shots, filterId, { dateLabel, caption })
-      .then((url) => {
+    void composeDigitalOutputs(layout, shots, filterId, { dateLabel, caption })
+      .then((result) => {
         if (cancelled) return;
-        setComposite(url);
-        onCompositeRef.current(url);
+        setComposite(result.jpeg);
+        setPreview(result.preview);
+        onCompositeRef.current(result.jpeg);
       })
       .catch(() => {
         if (!cancelled) setGenerationError(true);
@@ -98,7 +101,7 @@ export function ReviewPane({
     return () => {
       cancelled = true;
     };
-  }, [layout, shots, filterId, caption, generationAttempt]);
+  }, [layout, shots, filterId, caption, dateLabel, generationAttempt]);
 
   useEffect(() => {
     if (!composite) {
@@ -221,7 +224,7 @@ export function ReviewPane({
             {layout.title}
           </h2>
           <p role="status" className="mt-1 text-sm text-fg-muted">
-            {generationPending ? "Собираем ленточку…" : generationError ? "Ленточка не готова. Повторите сборку ниже." : <>{layout.sizeLabel} · {layout.poseLabel}. {isS3 ? "Ваша ленточка готова к печати." : "Скачайте карточку или закажите печать."}</>}
+            {generationPending ? "Собираем ленточку…" : generationError ? "Ленточка не готова. Повторите сборку ниже." : <>{layout.sizeLabel} · {layout.poseLabel}. {isS3 ? "Ваша ленточка готова." : "Скачайте карточку или закажите печать."}</>}
           </p>
         </div>
         <p className="text-sm text-fg-muted">
@@ -232,11 +235,11 @@ export function ReviewPane({
       <div className="review-body grid items-start gap-6 lg:grid-cols-3">
         <div className="review-preview overflow-hidden rounded-2xl bg-bg-elevated p-3 shadow-[var(--shadow-border)] lg:col-span-2">
           <div className="review-paper flex min-h-72 items-center justify-center rounded-xl bg-paper p-4">
-            {composite && isS3 ? (
+            {preview && isS3 ? (
               <Dialog.Root>
                 <Dialog.Trigger asChild>
                   <button type="button" className="review-enlarge" aria-label="Увеличить фотополоску" disabled={!resultReady}>
-                    <img src={composite} alt={`Макет ${layout.id}`} className="review-strip" />
+                    <img src={preview} alt={`Макет ${layout.id}`} className="review-strip" />
                   </button>
                 </Dialog.Trigger>
                 <Dialog.Portal>
@@ -248,13 +251,13 @@ export function ReviewPane({
                         <X className="size-5" />
                       </Button>
                     </Dialog.Close>
-                    <img src={composite} alt="Фотополоска S3 целиком" className="strip-lightbox-image" />
+                    <img src={preview} alt="Фотополоска S3 целиком" className="strip-lightbox-image" />
                   </Dialog.Content>
                 </Dialog.Portal>
               </Dialog.Root>
-            ) : composite ? (
+            ) : preview ? (
               <img
-                src={composite}
+                src={preview}
                 alt={`Макет ${layout.id}`}
                 className="review-strip max-h-svh w-full object-contain"
               />
@@ -329,6 +332,7 @@ export function ReviewPane({
               </Button>
             )}
             {!isS3 && orderButton}
+            {isS3 && <PrintMasterAction layout={layout} shots={shots} filterId={filterId} caption={caption} dateLabel={dateLabel} ready={resultReady} />}
             </SecondaryActions>
             {!isS3 && retakeButton}
           </div>
