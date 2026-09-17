@@ -42,6 +42,8 @@ export function OrderPane({
   filterId,
   onBack,
   onDone,
+  source = "captures",
+  onSubmittingChange,
 }: {
   layout: Layout;
   shots: Array<string | null>;
@@ -49,6 +51,8 @@ export function OrderPane({
   filterId: FilterId;
   onBack: () => void;
   onDone: (orderNumber: string, total: number) => void;
+  source?: "captures" | "recent";
+  onSubmittingChange?: (submitting: boolean) => void;
 }) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
@@ -69,7 +73,7 @@ export function OrderPane({
       return;
     }
     const filledShots = shots.filter((s): s is string => Boolean(s));
-    if (filledShots.length < layout.poses) {
+    if (source === "captures" && filledShots.length < layout.poses) {
       setSubmitError("Нужны все кадры макета");
       return;
     }
@@ -79,15 +83,18 @@ export function OrderPane({
     }
     submittingRef.current = true;
     setSubmitting(true);
+    onSubmittingChange?.(true);
     try {
       const compactComposite = await compressDataUrl(composite, 1200, 0.82);
-      const compactShots = await Promise.all(
+      // Recent storage has only the finished strip. Send that as one supplied
+      // image through the existing order API; never invent individual captures.
+      const compactShots = source === "recent" ? [compactComposite] : await Promise.all(
         filledShots.map((s) => compressDataUrl(s, 960, 0.78)),
       );
       const result = await placeOrder({
         data: {
           layoutId: layout.id,
-          layoutName: `${layout.title} · ${layout.sizeLabel}`,
+          layoutName: `${layout.title} · ${layout.sizeLabel}${source === "recent" ? " · копия из недавних" : ""}`,
           customerName: form.customerName.trim(),
           phone: form.phone.trim(),
           postalCode: form.postalCode.trim(),
@@ -108,6 +115,7 @@ export function OrderPane({
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
+      onSubmittingChange?.(false);
     }
   }
 
@@ -127,6 +135,7 @@ export function OrderPane({
           <p className="mt-1 text-xs text-fg-subtle">
             Первые {EXTRA_AFTER} по {formatRub(layout.unitPrice)}, дальше +{EXTRA_STEP_RUB} ₽ за копию.
           </p>
+          {source === "recent" && <p className="mt-2">Для печати будет использована уменьшенная копия из недавних снимков. Исходные кадры не сохранены.</p>}
         </div>
       </div>
 

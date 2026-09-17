@@ -339,6 +339,33 @@
   object-fit: contain;
 }
 
+.recent-dialog {
+  position: fixed;
+  inset: 1rem;
+  z-index: 50;
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  height: fit-content;
+  margin: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border-radius: 1rem;
+  padding: 1rem;
+  background: var(--color-bg-elevated);
+  color: var(--color-fg);
+}
+
+.recent-dialog-order { width: min(64rem, calc(100vw - 2rem)); }
+.recent-dialog-image {
+  width: 100%;
+  height: min(65dvh, 42rem);
+  min-height: 8rem;
+  object-fit: contain;
+}
+
 [data-booth-mode="workspace"] .review-caption input {
   /* Prevent Safari's automatic input zoom without disabling user zoom. */
   font-size: 1rem;
@@ -374,7 +401,7 @@
 }
 
 [data-booth-mode="workspace"] .review-order,
-[data-booth-mode="workspace"] .review-secondary[open] {
+[data-booth-mode="workspace"] .review-secondary {
   grid-column: 1 / -1;
 }
 

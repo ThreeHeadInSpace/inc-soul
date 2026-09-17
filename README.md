@@ -207,3 +207,14 @@ Digital JPEG остаётся в Share и внутреннем output pipeline.
 Она измеряет восемь viewport, проверяет square/crop при смене stream metadata,
 background/foreground, сериализацию requests между sessions и длительности.
 Артефакты сохраняются в игнорируемом `artifacts/queue-b/`.
+
+## Queue C: recent photos и polish
+
+[Отчёт Queue C v0.0.7](docs/queue-c-v0.0.7.md): recent preview и быстрые действия,
+заказ сохранённой копии через существующий flow, текст сервиса в JPEG Share,
+увеличенный на 8 физических pt S3 brand mark, фильтры и центрирование save/print.
+Recent хранит уменьшенный JPEG без исходников; качество печати такой копии ограничено.
+
+Проверки: `node scripts/queue-c-regression.mjs` на dev или с `BOOTH_BASE_URL`
+собранного Preview. `node scripts/queue-c-output-regression.mjs` на dev сравнивает
+print pixels и typography с v0.0.6 при 300/600 DPI. Артефакты: `artifacts/queue-c/`.

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { FolderPlus, RotateCcw, Share2, Truck, X } from "lucide-react";
+import { FolderPlus, Mail, RotateCcw, Share2, X } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import type { Layout } from "@/lib/layouts";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { saveStrip } from "@/lib/strips";
 import { formatRub } from "@/lib/utils";
+import { canShareJpeg, jpegSharePayload } from "@/lib/share";
 
 export function ReviewPane({
   layout,
@@ -66,13 +67,7 @@ export function ReviewPane({
   const filename = `inc-soul-layout-${layout.id}.jpg`;
   const jpegReady = jpeg?.source === composite;
   const canShare = useMemo(() => {
-    if (layout.id !== "S3" || !jpeg || typeof navigator === "undefined" ||
-        typeof navigator.share !== "function" || typeof navigator.canShare !== "function") return false;
-    try {
-      return navigator.canShare({ files: [jpeg.file] });
-    } catch {
-      return false;
-    }
+    return layout.id === "S3" && !!jpeg && canShareJpeg(jpeg.file);
   }, [jpeg, layout.id]);
 
   useEffect(() => {
@@ -127,7 +122,7 @@ export function ReviewPane({
     setShareError(false);
     try {
       // Call before any await so the browser retains the click's user activation.
-      await navigator.share({ files: [jpeg.file] });
+      await navigator.share(jpegSharePayload(jpeg.file));
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
         setShareError(true);
@@ -180,12 +175,12 @@ export function ReviewPane({
       onClick={onOrder}
       disabled={!resultReady}
     >
-      <Truck className="size-4" />
+      <Mail className="size-4" aria-hidden="true" />
       {isS3 ? "Заказать ленточку" : "Заказать печать"}
     </Button>
   ) : (
     <Button className={isS3 ? "review-order" : undefined} variant={isS3 ? "primary" : "ghost"} asChild>
-      <Link to="/login">{isS3 ? "Заказать ленточку" : "Войти, чтобы заказать"}</Link>
+      <Link to="/login"><Mail className="size-4" aria-hidden="true" />{isS3 ? "Заказать ленточку" : "Войти, чтобы заказать"}</Link>
     </Button>
   );
   const retakeButton = (

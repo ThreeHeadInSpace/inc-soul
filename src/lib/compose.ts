@@ -52,8 +52,8 @@ async function ensureFonts() {
   if (typeof document === "undefined" || !document.fonts) return;
   await Promise.all([
     document.fonts.load('72px "Great Vibes"'),
-    document.fonts.load('24px "Outfit"'),
-    document.fonts.load('italic 32px "Fraunces"'),
+    document.fonts.load('500 24px "Outfit"'),
+    document.fonts.load('italic 500 32px "Fraunces"'),
     document.fonts.load('28px "Fraunces"'),
   ]).catch(() => undefined);
   await document.fonts.ready.catch(() => undefined);
@@ -94,6 +94,7 @@ function drawBrand(
   meta: ComposeMeta,
   paper = PAPER,
   isS3 = false,
+  markBoost = 0,
 ) {
   ctx.save();
   ctx.fillStyle = paper;
@@ -135,7 +136,7 @@ function drawBrand(
     ctx.fillText(dateText, x + w / 2, y + h * 0.7);
   }
 
-  const markSize = Math.max(8, Math.min(w, h) * 0.075) + sizeBoost;
+  const markSize = Math.max(8, Math.min(w, h) * 0.075) + sizeBoost + markBoost;
   ctx.fillStyle = isS3 ? "#333333" : QUIET;
   ctx.font = `${markSize}px "Great Vibes", cursive`;
   ctx.fillText("inc & soul", x + w / 2, y + h * 0.86);
@@ -176,7 +177,9 @@ async function renderLayout(
     const h = slot.h * layout.height;
 
     if (slot.type === "brand") {
-      drawBrand(ctx, x, y, w, h, meta, paper, layout.id === "S3");
+      // +8 physical points at the candidate strip width, independent of output DPI.
+      const markBoost = layout.id === "S3" ? (8 / 72) * layout.width * 25.4 / S3_PRINT_CANDIDATE.widthMm : 0;
+      drawBrand(ctx, x, y, w, h, meta, paper, layout.id === "S3", markBoost);
       continue;
     }
 
