@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { chromium } from "playwright";
-const dir = new URL("../artifacts/queue-c/",import.meta.url);
+const dir = new URL("../artifacts/owner-feedback/",import.meta.url);
 await mkdir(dir,{recursive:true});
-await writeFile(new URL("baseline-compose.ts",dir),execFileSync("git",["show","5f89caccbce0edc3a0b4b47ea7d63f2bc4179bd2:src/lib/compose.ts"],{encoding:"utf8"}).replaceAll("@/lib/", "../../src/lib/"));
+await writeFile(new URL("baseline-compose.ts",dir),execFileSync("git",["show","2d2c51ad0cc839e1da306c47f23a6a9a60f89742:src/lib/compose.ts"],{encoding:"utf8"}).replaceAll("@/lib/", "../../src/lib/"));
 const browser=await chromium.launch({channel:"chrome"});
 try {
   const page=await browser.newPage();
   await page.goto("http://localhost:8080/",{waitUntil:"networkidle"});
   const result=await page.evaluate(async()=>{
-    const before=await import("/artifacts/queue-c/baseline-compose.ts");
+    const before=await import("/artifacts/owner-feedback/baseline-compose.ts");
     const after=await import("/src/lib/compose.ts");
     const {BOOTH_LAYOUTS}=await import("/src/lib/layouts.ts");
     // Warm the exact weights before the baseline render as well. v0.0.6 only
@@ -30,7 +30,7 @@ try {
     for(const id of ["S3","S4"]){
       const layout=BOOTH_LAYOUTS.find(l=>l.id===id);const inputs=[...shots,shots[0]].slice(0,layout.poses);
       for(const dpi of [300,600]){
-        const meta={dateLabel:"18.09.2026",caption:"Проверка"};
+        const meta={dateLabel:"18.09.2026"};
         // S4 isn't a supported print spec; compare its unchanged digital output.
         if(id==="S4"){
           check(await before.composeLayout(layout,inputs,"none",meta)===await after.composeLayout(layout,inputs,"none",meta),"non-S3 unchanged");break;
@@ -41,18 +41,18 @@ try {
         const next=await after.composePrintMaster(layout,inputs,"none",meta,{widthMm:50.8,heightMm:152.4,dpi});
         const newCalls=calls.slice();
         const om=oldCalls.find(c=>c.text==="inc & soul"),nm=newCalls.find(c=>c.text==="inc & soul");
-        const pt=f=>parseFloat(f)*nm.scale/dpi*72;
-        check(Math.abs(pt(nm.font)-pt(om.font)-8)<0.01,"exact +8 physical pt");
+        const pt=f=>Number(/([\d.]+)px/.exec(f)[1])*nm.scale/dpi*72;
+        check(Math.abs(pt(nm.font)-pt(om.font)+2)<0.01,"logo -2 physical pt relative to v0.0.7");
         check(om.x===nm.x&&om.y===nm.y,"brand alignment unchanged");
         const date=newCalls.find(c=>c.text==="18.09.2026");
-        check(JSON.stringify(date)===JSON.stringify(oldCalls.find(c=>c.text==="18.09.2026")),"date unchanged");
+        const oldDate=oldCalls.find(c=>c.text==="18.09.2026"); check(Math.abs(pt(date.font)-pt(oldDate.font)-2)<0.01,"date +2 physical pt"); check(date.x===oldDate.x && date.y===oldDate.y,"date position unchanged");
         check(nm.bottom<layout.height&&nm.top>date.bottom,"logo fits below date and inside strip");
         const a=await decode(old.blob),b=await decode(next.blob);
-        const top=Math.floor(Math.min(om.top,nm.top)*nm.scale)-Math.ceil(2*nm.scale);
+        const top=Math.floor(Math.min(oldDate.top,date.top)*nm.scale)-Math.ceil(2*nm.scale);
         let changed=0;
-        for(let i=0;i<a.data.length;i++)if(a.data[i]!==b.data[i]){check(Math.floor(i/4/a.width)>=top,JSON.stringify({label:"all pixels above brand unchanged",pixel:[Math.floor(i/4)%a.width,Math.floor(i/4/a.width)],top,oldCalls,newCalls}));changed++;}
+        for(let i=0;i<a.data.length;i++)if(a.data[i]!==b.data[i]){check(Math.floor(i/4/a.width)>=top,JSON.stringify({label:"photos, margins and separator pixels unchanged",pixel:[Math.floor(i/4)%a.width,Math.floor(i/4/a.width)],top,oldCalls,newCalls}));changed++;}
         check(changed>0,"brand pixels changed");
-        results.push({dpi,brandBeforePt:pt(om.font),brandAfterPt:pt(nm.font),dateGapLayoutPx:nm.top-date.bottom,bottomMarginLayoutPx:layout.height-nm.bottom,changedChannels:changed,unchangedThroughRow:top-1});
+        results.push({dpi,dateBeforePt:pt(oldDate.font),dateAfterPt:pt(date.font),brandBeforePt:pt(om.font),brandAfterPt:pt(nm.font),dateGapLayoutPx:nm.top-date.bottom,bottomMarginLayoutPx:layout.height-nm.bottom,changedChannels:changed,unchangedThroughRow:top-1});
         if(dpi===300)final=Array.from(new Uint8Array(await next.blob.arrayBuffer()));
       }
     }

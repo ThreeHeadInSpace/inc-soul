@@ -218,3 +218,11 @@ Recent хранит уменьшенный JPEG без исходников; к�
 Проверки: `node scripts/queue-c-regression.mjs` на dev или с `BOOTH_BASE_URL`
 собранного Preview. `node scripts/queue-c-output-regression.mjs` на dev сравнивает
 print pixels и typography с v0.0.6 при 300/600 DPI. Артефакты: `artifacts/queue-c/`.
+
+## Owner feedback pass v0.0.8
+
+[Отчёт owner feedback](docs/owner-feedback-v0.0.8.md): S3 дата +2 физических pt,
+логотип −2 pt относительно v0.0.7. Recent, filters/CTA и save/print подтверждены
+владельцем. Share уже использует один `{ files, text }`; отображение caption
+определяет receiving app. `queue-c-output-regression.mjs` теперь сравнивает с
+v0.0.7 и сохраняет результаты в `artifacts/owner-feedback/`.

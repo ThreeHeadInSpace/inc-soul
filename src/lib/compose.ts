@@ -94,7 +94,7 @@ function drawBrand(
   meta: ComposeMeta,
   paper = PAPER,
   isS3 = false,
-  markBoost = 0,
+  physicalPointPx = 0,
 ) {
   ctx.save();
   ctx.fillStyle = paper;
@@ -128,7 +128,7 @@ function drawBrand(
 
   // Canvas font sizes use CSS pixels: 5 pt = 5 * 96 / 72 px.
   const sizeBoost = isS3 ? (5 * 96) / 72 : 0;
-  const dateSize = Math.max(9, Math.min(w, h) * 0.09) + sizeBoost;
+  const dateSize = Math.max(9, Math.min(w, h) * 0.09) + sizeBoost + 2 * physicalPointPx;
   ctx.fillStyle = MUTED;
   ctx.font = `500 ${dateSize}px "Outfit", sans-serif`;
   const dateText = meta.dateLabel ?? "";
@@ -136,7 +136,8 @@ function drawBrand(
     ctx.fillText(dateText, x + w / 2, y + h * 0.7);
   }
 
-  const markSize = Math.max(8, Math.min(w, h) * 0.075) + sizeBoost + markBoost;
+  // Queue C added 8 physical pt; owner feedback reduces that by 2 pt.
+  const markSize = Math.max(8, Math.min(w, h) * 0.075) + sizeBoost + 6 * physicalPointPx;
   ctx.fillStyle = isS3 ? "#333333" : QUIET;
   ctx.font = `${markSize}px "Great Vibes", cursive`;
   ctx.fillText("inc & soul", x + w / 2, y + h * 0.86);
@@ -177,9 +178,9 @@ async function renderLayout(
     const h = slot.h * layout.height;
 
     if (slot.type === "brand") {
-      // +8 physical points at the candidate strip width, independent of output DPI.
-      const markBoost = layout.id === "S3" ? (8 / 72) * layout.width * 25.4 / S3_PRINT_CANDIDATE.widthMm : 0;
-      drawBrand(ctx, x, y, w, h, meta, paper, layout.id === "S3", markBoost);
+      // Physical typography at the candidate strip width, independent of output DPI.
+      const physicalPointPx = layout.id === "S3" ? layout.width * 25.4 / (72 * S3_PRINT_CANDIDATE.widthMm) : 0;
+      drawBrand(ctx, x, y, w, h, meta, paper, layout.id === "S3", physicalPointPx);
       continue;
     }
 

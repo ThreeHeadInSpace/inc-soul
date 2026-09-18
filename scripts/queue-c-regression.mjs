@@ -10,6 +10,10 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--use-fake-de
 const context = await browser.newContext({ permissions: ["camera"], viewport: { width: 390, height: 844 } });
 await context.addInitScript(() => {
   window.__shares = [];
+  window.__clipboardWrites = 0;
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+    writeText: async () => { window.__clipboardWrites++; },
+  } });
   window.__shareMode = "ok";
   navigator.canShare = (data) => window.__shareMode !== "unsupported" && data.files?.[0] instanceof File;
   navigator.share = async (data) => {
@@ -43,10 +47,20 @@ async function downloadFrom(scope, source) {
 async function checkShare(source) {
   const data = await page.evaluate(async source => {
     const share = window.__shares.at(-1);
-    return { active: share.active, text: share.data.text, url: share.data.url, type: share.data.files[0].type,
+    const image = await createImageBitmap(share.data.files[0]);
+    const original = await createImageBitmap(await (await fetch(source)).blob());
+    const dimensionsMatch = image.width === original.width && image.height === original.height;
+    image.close(); original.close();
+    return { active: share.active, text: share.data.text, keys: Object.keys(share.data).sort(), files: share.data.files.length, dimensionsMatch, url: share.data.url, type: share.data.files[0].type,
       same: await share.data.files[0].text() === await (await fetch(source)).text() };
   }, source);
-  assert.deepEqual(data, { active: true, text: "Сделано в сервисе inc&soul\nСсылка:", url: undefined, type: "image/jpeg", same: true });
+  assert.deepEqual(data, { active: true, text: "Сделано в сервисе inc&soul\nСсылка:", keys: ["files", "text"], files: 1, dimensionsMatch: true, url: undefined, type: "image/jpeg", same: true });
+}
+async function shareOnce(button) {
+  const before = await page.evaluate(() => window.__shares.length);
+  await button.click();
+  assert.equal(await page.evaluate(() => window.__shares.length), before + 1, "one share call per action");
+  assert.equal(await page.evaluate(() => window.__clipboardWrites), 0);
 }
 try {
   await page.goto(new URL("booth", base).href, { waitUntil: "networkidle" });
@@ -87,7 +101,7 @@ try {
   }
   pass("envelope CTA and centered 44px save trigger, closed/open at 5 viewports");
   await page.setViewportSize({width:390,height:844});
-  await page.getByRole("button", {name:"Поделиться",exact:true}).click();
+  await shareOnce(page.getByRole("button", {name:"Поделиться",exact:true}));
   await checkShare(await page.evaluate(() => window.__jpeg));
   await page.locator(".review-secondary > summary").click();
   await page.getByRole("button", {name:"Подготовить для печати",exact:true}).click();
@@ -95,7 +109,7 @@ try {
   const printData = await page.evaluate(async url => Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())), await print.getAttribute("href"));
   const bytes = Buffer.from(printData); assert.equal(bytes.readUInt32BE(16),600); assert.equal(bytes.readUInt32BE(20),1800);
   assert.equal(bytes.readUInt32BE(bytes.indexOf(Buffer.from("pHYs"))+4),11811);
-  await page.getByRole("button", {name:"Поделиться",exact:true}).click(); await checkShare(await page.evaluate(() => window.__jpeg));
+  await shareOnce(page.getByRole("button", {name:"Поделиться",exact:true})); await checkShare(await page.evaluate(() => window.__jpeg));
   await page.getByRole("button", {name:"Увеличить фотополоску",exact:true}).click();
   assert.equal(await dialog.locator("img").getAttribute("src"), await page.locator(".review-strip").getAttribute("src"));
   await page.keyboard.press("Escape");
@@ -105,21 +119,22 @@ try {
   const card = page.locator(".recent-photos figure").first();
   const source = await card.locator("img").getAttribute("src");
   await downloadFrom(card,source); assert.equal(await dialog.count(),0);
-  await card.getByRole("button",{name:"Поделиться",exact:true}).click(); await checkShare(source); assert.equal(await dialog.count(),0);
+  await shareOnce(card.getByRole("button", {name:"Поделиться",exact:true})); await checkShare(source); assert.equal(await dialog.count(),0);
   await card.getByRole("button",{name:/Открыть снимок/}).click();
   assert.equal(await dialog.locator("img").getAttribute("src"),source);
   for (const name of ["Скачать","Удалить","Заказать","Поделиться"]) assert.equal(await dialog.getByRole("button",{name,exact:true}).count(),1);
   await downloadFrom(dialog,source);
-  await dialog.getByRole("button",{name:"Поделиться",exact:true}).click(); await checkShare(source);
+  await shareOnce(dialog.getByRole("button", {name:"Поделиться",exact:true})); await checkShare(source);
   for (const mode of ["abort", "error", "pending"]) {
     await page.evaluate(mode => { window.__shareMode = mode; }, mode);
-    await dialog.getByRole("button",{name:"Поделиться",exact:true}).click();
+    await shareOnce(dialog.getByRole("button", {name:"Поделиться",exact:true}));
     if (mode === "pending") {
       const count = await page.evaluate(() => window.__shares.length);
       await dialog.getByRole("button",{name:"Поделиться",exact:true}).evaluate(button => button.click());
       assert.equal(await page.evaluate(() => window.__shares.length),count);
       await page.evaluate(() => { window.__finishShare(); });
     }
+    if (mode === "abort") assert.equal(await page.getByText(/Не удалось поделиться/).count(), 0);
   }
   await page.evaluate(() => { window.__shareMode = "ok"; });
   for (const [width,height] of [[360,800],[844,390],[768,1024]]) {
