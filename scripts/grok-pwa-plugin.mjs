@@ -28,9 +28,9 @@ function requestHost(req) {
   return Array.isArray(host) ? host[0] : host;
 }
 
-export function renderInstallPage(hostHeader, url = "/") {
+export function renderInstallPage(hostHeader, url = "/", appName) {
   const template = readFileSync(INSTALL_PAGE_PATH, "utf8");
-  return renderInstallPageHtml(template, { host: hostHeader, url });
+  return renderInstallPageHtml(template, { host: hostHeader, url, appName });
 }
 
 function sendHtml(res, html) {
@@ -64,7 +64,7 @@ function serveGrokPwa(middlewares, root) {
 
     if (isInstallQuery(rawUrl) && isDocumentPath(pathOnly) && acceptsHtml(req.headers.accept)) {
       try {
-        sendHtml(res, renderInstallPage(requestHost(req), rawUrl));
+        sendHtml(res, renderInstallPage(requestHost(req), rawUrl, snapshotOgIdentity(root).site.title));
       } catch (err) {
         console.error("[app-builder] install page missing:", err);
         res.statusCode = 500;

@@ -11,7 +11,7 @@ export declare function acceptsHtml(accept: string | null | undefined): boolean;
 export declare function stripInstallParams(url: string | null | undefined): string;
 export declare function renderInstallPageHtml(
   template: string,
-  context?: { host?: string | null; url?: string | null },
+  context?: { host?: string | null; url?: string | null; appName?: string },
 ): string;
 export declare function renderWebManifest(hostHeader: string | null | undefined, appName?: string): string;
 export declare function grokPwaHeadTags(appName?: string): Array<[string, string]>;

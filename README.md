@@ -226,3 +226,11 @@ print pixels и typography с v0.0.6 при 300/600 DPI. Артефакты: `ar
 владельцем. Share уже использует один `{ files, text }`; отображение caption
 определяет receiving app. `queue-c-output-regression.mjs` теперь сравнивает с
 v0.0.7 и сохраняет результаты в `artifacts/owner-feedback/`.
+
+## Release Candidate v0.0.9
+
+[RC regression, production checklist и rollback](docs/release-candidate-v0.0.9.md).
+Feature freeze: исправлены recovery повреждённого recent storage и имя приложения
+на iOS install page; новые функции не добавлены. Дополнительная проверка:
+`node scripts/rc-regression.mjs` (BOOTH_BASE_URL по умолчанию localhost:8081;
+для Preview label задайте RC_PREVIEW=1).

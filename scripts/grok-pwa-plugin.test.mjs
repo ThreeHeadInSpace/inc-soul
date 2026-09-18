@@ -12,6 +12,7 @@ import {
   isDocumentPath,
   isInstallQuery,
   publicAppHost,
+  renderInstallPageHtml,
   renderWebManifest,
   resolveOgCardAsset,
   snapshotOgIdentity,
@@ -473,6 +474,17 @@ test("renders install page markup", () => {
   assert.equal(html.includes("{{APP_URL}}"), false);
 });
 
+test("install page uses the product identity on Preview and custom domains", () => {
+  for (const host of ["localhost:8080", "inc-soul-pre-prod.vercel.app", "photos.example.com"]) {
+    const html = renderInstallPage(host, "/booth?install=1&platform=ios&tab=2", "inc&soul");
+    assert.match(html, /Add inc&amp;soul to your/);
+    assert.match(html, /href="\/booth\?tab=2"/);
+    assert.doesNotMatch(html, /Grok App|\{\{APP_NAME\}\}/);
+  }
+  assert.equal(renderInstallPageHtml("{{APP_NAME}}", { appName: '<img src=x onerror="bad">' }),
+    "&lt;img src=x onerror=&quot;bad&quot;&gt;");
+});
+
 test("escapes host-derived values in the install page", () => {
   const html = renderInstallPage("<script>alert(1)</script>", "/?install=1&platform=ios");
   assert.equal(html.includes("<script>alert(1)</script>"), false);
@@ -508,4 +520,3 @@ test("vite plugin bakes og identity as a virtual module", () => {
   assert.match(plugin, /virtual:grok-og-identity/);
   assert.match(plugin, /snapshotOgIdentity/);
 });
-

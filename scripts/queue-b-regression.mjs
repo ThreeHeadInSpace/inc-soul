@@ -45,6 +45,12 @@ await context.addInitScript(() => {
     window.__paint();
     const stream = canvas.captureStream(15);
     const track = stream.getVideoTracks()[0];
+    // A physical camera keeps producing frames. A static canvas can lose its
+    // one resize frame while video is paused, so explicitly keep it flowing.
+    const frames = setInterval(() => {
+      if (track.readyState === 'ended') clearInterval(frames);
+      else track.requestFrame();
+    }, 60);
     track.getSettings = () => ({ facingMode: mode, width: canvas.width, height: canvas.height });
     window.__tracks.push(track);
     return stream;
