@@ -7,7 +7,7 @@ test("share sends the same JPEG with service text and no misleading URL", () => 
   const file = new File([new Uint8Array([255, 216, 255, 217])], "strip.jpg", { type: "image/jpeg" });
   const payload = jpegSharePayload(file);
   assert.equal(payload.files[0], file);
-  assert.equal(payload.text, "Сделано в сервисе inc&soul\nСсылка:");
+  assert.equal(payload.text, "Сделано в сервисе inc&soul\nhttps://incsoul.ru/");
   assert.equal(payload.url, undefined);
   assert.equal(SHARE_TEXT, payload.text);
 });

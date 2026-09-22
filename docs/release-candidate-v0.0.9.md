@@ -1,5 +1,10 @@
 # Release Candidate v0.0.9
 
+> Исторический отчёт RC. Владелец подтвердил физические устройства, native Share,
+> контрольную печать и branding/date/logo — PASS. Production checklist ниже
+> заменён аудитом бесплатного MVP+ в [v0.1.0](release-preparation-v0.1.0.md):
+> создавать БД/auth/OAuth secrets для текущего релиза не требуется.
+
 18 сентября 2026. Ветка `pre-prod`. Feature freeze.
 База/rollback: `48500689da9e82cbed6c8d7bc179014256144649` (`v0.0.8`).
 

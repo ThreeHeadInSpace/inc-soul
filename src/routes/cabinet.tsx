@@ -1,5 +1,6 @@
+import { FREE_MVP } from "@/lib/pricing";
 import { useEffect, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageFrame } from "@/components/booth/BoothApp";
@@ -12,7 +13,12 @@ import { listOrders, type OrderSummary } from "@/lib/orders";
 import { layoutTitle } from "@/lib/layouts";
 import { formatRub } from "@/lib/utils";
 
-export const Route = createFileRoute("/cabinet")({ component: CabinetPage });
+export const Route = createFileRoute("/cabinet")({
+  beforeLoad: () => {
+    if (FREE_MVP) throw redirect({ to: "/" });
+  },
+  component: CabinetPage,
+});
 
 function CabinetPage() {
   const { user, isPending } = useCurrentUserState();

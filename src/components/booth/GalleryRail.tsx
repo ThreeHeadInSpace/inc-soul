@@ -1,3 +1,4 @@
+import { FREE_MVP } from "@/lib/pricing";
 import { useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -126,7 +127,7 @@ function RecentPhoto({ item, onRemoveFocus }: { item: GalleryItem; onRemoveFocus
                 <Button variant="outline" onClick={download}><Download className="size-4" />Скачать</Button>
                 <Button variant="ghost" disabled={!canShare || sharing} onClick={() => void share()}><Share2 className="size-4" />Поделиться</Button>
                 <Button variant="ghost" onClick={deleteItem}><Trash2 className="size-4" />Удалить</Button>
-                <Button variant="primary" disabled={!layout} onClick={() => setOrdering(true)}><Mail className="size-4" />Заказать</Button>
+                {!FREE_MVP && <Button variant="primary" disabled={!layout} onClick={() => setOrdering(true)}><Mail className="size-4" />Заказать</Button>}
               </div>
             </>
           )}

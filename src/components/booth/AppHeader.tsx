@@ -1,3 +1,4 @@
+import { FREE_MVP } from "@/lib/pricing";
 import { Link } from "@tanstack/react-router";
 import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -14,7 +15,7 @@ export function AppHeader() {
           Photobooth
         </span>
       </Link>
-      <nav className="flex items-center gap-2">
+      {!FREE_MVP && <nav className="flex items-center gap-2">
         <Button variant="primary" asChild>
           <Link to="/cabinet">
             <span className="sm:hidden">Кабинет</span>
@@ -30,7 +31,7 @@ export function AppHeader() {
             <Link to="/login">Войти</Link>
           </Button>
         )}
-      </nav>
+      </nav>}
     </header>
   );
 }

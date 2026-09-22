@@ -1,3 +1,4 @@
+import { FREE_MVP, FREE_MVP_LABEL } from "@/lib/pricing";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { FolderPlus, Mail, RotateCcw, Share2, X } from "lucide-react";
@@ -205,7 +206,7 @@ export function ReviewPane({
           </p>
         </div>
         <p className="text-sm text-fg-muted">
-          Печать {formatRub(layout.unitPrice)}
+          {FREE_MVP ? FREE_MVP_LABEL : `Печать ${formatRub(layout.unitPrice)}`}
         </p>
       </div>
 
@@ -280,7 +281,7 @@ export function ReviewPane({
             ))}
           </div>
           <div className="review-actions flex flex-col gap-2">
-            {orderButton}
+            {!FREE_MVP && orderButton}
             {isS3 && retakeButton}
             {canShare && (
               <Button variant="ghost" onClick={() => void shareJpeg()} disabled={!resultReady || !jpegReady || sharing}>
@@ -291,7 +292,7 @@ export function ReviewPane({
             <SecondaryActions className={isS3 ? "review-secondary" : "contents"}>
             {isS3 && <summary>Скачать / сохранить</summary>}
             {saveError && <AsyncNotice error message={ACTION_ERROR} />}
-            {user ? (
+            {!FREE_MVP && (user ? (
               <Button
                 variant="outline"
                 disabled={!resultReady || saving}
@@ -304,7 +305,7 @@ export function ReviewPane({
               <Button variant="outline" asChild>
                 <Link to="/login">Войти, чтобы сохранить</Link>
               </Button>
-            )}
+            ))}
             {isS3 && <PrintMasterAction layout={layout} shots={shots} filterId={filterId} caption={caption} dateLabel={dateLabel} ready={resultReady} />}
             </SecondaryActions>
             {!isS3 && retakeButton}

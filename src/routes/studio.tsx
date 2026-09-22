@@ -1,5 +1,6 @@
+import { FREE_MVP } from "@/lib/pricing";
 import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Copy, Download } from "lucide-react";
 import { toast } from "sonner";
 import { PageFrame } from "@/components/booth/BoothApp";
@@ -10,7 +11,12 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getOrder, listOrders, type OrderDetail, type OrderSummary } from "@/lib/orders";
 import { formatRub } from "@/lib/utils";
 
-export const Route = createFileRoute("/studio")({ component: StudioPage });
+export const Route = createFileRoute("/studio")({
+  beforeLoad: () => {
+    if (FREE_MVP) throw redirect({ to: "/" });
+  },
+  component: StudioPage,
+});
 
 function StudioPage() {
   const { user, isPending } = useCurrentUserState();

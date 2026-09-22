@@ -1,5 +1,5 @@
-// Leave the link empty until a public production URL is available.
-export const SHARE_TEXT = "Сделано в сервисе inc&soul\nСсылка:";
+export const PRODUCTION_URL = "https://incsoul.ru/";
+export const SHARE_TEXT = `Сделано в сервисе inc&soul\n${PRODUCTION_URL}`;
 
 export function jpegSharePayload(file: File): ShareData {
   return { files: [file], text: SHARE_TEXT };

@@ -1,5 +1,6 @@
+import { FREE_MVP } from "@/lib/pricing";
 import { useState, type FormEvent } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import {
   GROK_PROVIDERS,
   authClient,
@@ -11,7 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageFrame } from "@/components/booth/BoothApp";
 
-export const Route = createFileRoute("/login")({ component: Login });
+export const Route = createFileRoute("/login")({
+  beforeLoad: () => {
+    if (FREE_MVP) throw redirect({ to: "/" });
+  },
+  component: Login,
+});
 
 function Login() {
   const [mode, setMode] = useState<"in" | "up">("in");

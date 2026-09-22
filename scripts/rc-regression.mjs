@@ -8,11 +8,13 @@ const output = new URL("../artifacts/rc/", import.meta.url);
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome", args: ["--use-fake-device-for-media-stream", "--disable-gpu"] });
 const result = { checks: [], errors: [] };
+const backendRequests = [];
 const pass = (label) => { result.checks.push(label); console.log(`PASS: ${label}`); };
 async function fresh(options = {}, init) {
   const context = await browser.newContext(options);
   if (init) await context.addInitScript(init);
   const page = await context.newPage();
+  page.on("request", (request) => { if (/\/api\/auth\/|_serverFn/.test(request.url())) backendRequests.push(request.url()); });
   page.on("pageerror", (error) => result.errors.push(error.message));
   page.setDefaultTimeout(30000);
   return { context, page };
@@ -26,6 +28,7 @@ try {
   });
   await page.goto(base, { waitUntil: "networkidle" });
   assert.equal(await page.title(), "inc&soul");
+  assert.doesNotMatch(await page.locator("body").innerText(), /₽|Войти|Кабинет/);
   await page.getByRole("link", { name: /Начать фотобудку/ }).click();
   await page.getByText(/Доступ к камере запрещён/).waitFor();
   assert.ok(await page.getByRole("button", { name: "Снять кадр", exact: true }).isDisabled());
@@ -57,6 +60,14 @@ try {
   assert.match(await page.title(), /inc&soul/);
   assert.doesNotMatch(await page.locator("body").innerText(), /Grok App|\{\{APP_/);
   pass("version label, title/description/OG, favicon, manifest/icon assets and branded iOS installation page");
+  for (const path of ["/print", "/cabinet", "/login", "/studio"]) {
+    await page.goto(new URL(path, base).href, { waitUntil: "networkidle" });
+    assert.equal(new URL(page.url()).pathname, "/");
+    assert.doesNotMatch(await page.locator("body").innerText(), /₽|Войти|Кабинет|Доставка/);
+  }
+  assert.equal(await page.locator('link[rel="canonical"]').getAttribute("href"), "https://incsoul.ru/");
+  assert.equal((await page.request.get(new URL("/api/auth/get-session", base).href)).status(), 404);
+  pass("free MVP: legacy commercial routes redirect home; auth API closed; canonical production URL");
   await context.close();
 
   for (const items of [null, "bad", [null, {}, { id: "bad", layoutId: "S3", composite: "broken" }]]) {
@@ -84,6 +95,12 @@ try {
   await fallback.page.screenshot({ path: fileURLToPath(new URL("upload-without-camera.png", output)), fullPage: true });
   assert.equal(await fallback.page.locator(".review-shots img").count(), 3);
   pass("missing media API remains recoverable through upload to a complete result");
+  assert.match(await fallback.page.locator(".review-heading").innerText(), /Бесплатно на этапе тестирования/);
+  await fallback.page.locator(".review-secondary > summary").click();
+  assert.doesNotMatch(await fallback.page.locator("body").innerText(), /₽|Войти|Кабинет|Заказать|Доставка/);
+  assert.equal(await fallback.page.locator('link[rel="canonical"]').getAttribute("href"), "https://incsoul.ru/booth");
+  assert.deepEqual(backendRequests, []);
+  pass("free result and expanded actions: no prices, accounts/orders or backend requests");
   await fallback.context.close();
   assert.deepEqual(result.errors, []);
   result.passed = true;

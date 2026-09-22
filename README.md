@@ -8,7 +8,8 @@
 - Отдельный candidate PNG для печати из исходных кадров; текущий пробный размер
   50,8 × 152,4 мм при 300 DPI (600 × 1800 px).
 
-Физический размер и качество печати ещё требуют проверки владельцем. При
+RC v0.0.9 принят владельцем: iPhone/Android/tablet, native Share, контрольная
+печать и branding/date/logo — PASS. При
 недостаточном разрешении кадров интерфейс показывает ограничение качества.
 Код остальных макетов, кабинета и заказа сохранён для следующих этапов.
 
@@ -47,11 +48,9 @@ commit**, чтобы сохранять общую историю двух до�
 
 Стартовая версия — `v0.0.1`. Единственный источник номера — `version` в
 `package.json`; `package-lock.json` должен содержать тот же номер.
-До первого публичного релиза каждая следующая завершённая пользовательская
-или техническая итерация увеличивает последнее число на один:
-`v0.0.1` → `v0.0.2` → `v0.0.3`. Обновляйте номер один раз за итерацию командой
-`npm version patch --no-git-tag-version`, включайте его в общий коммит задачи.
-Отдельных автоматических release-коммитов, тегов и зависимостей нет.
+Первый публичный MVP+ — `v0.1.0` (осознанный minor bump с `v0.0.9`).
+Номер обновляется стандартной командой `npm version minor --no-git-tag-version`
+и включается в общий коммит подготовки релиза. Автоматических release-тегов нет.
 
 Версия отображается мелким текстом внизу интерфейса. При сборке Vite добавляет
 ` · pre-prod` только если одновременно `VERCEL_ENV=preview` и
@@ -98,8 +97,8 @@ Default branch менять не требуется: production branch зада�
    Custom Environment с именем `pre-prod` создавать не требуется.
 4. В Settings → Git проверьте подключение репозитория и отсутствие правила
    Ignored Build Step, пропускающего сборки `pre-prod` или `prod`.
-5. Настройте переменные окружения ниже отдельно для **Preview / `pre-prod`**
-   и **Production**. Изменения переменных применяются при новой сборке.
+5. Проверьте аудит окружения ниже для **Preview / `pre-prod`** и **Production**.
+   Текущий бесплатный MVP+ не требует специальных env или secrets.
 6. После настройки запустите Preview из ветки `pre-prod` (новым push либо
    Create Deployment с Git reference `pre-prod`) и проверьте его.
 7. Создайте PR `pre-prod` → `prod` и слейте после проверки. Первый релиз должен
@@ -117,37 +116,33 @@ Production deployment. До подключения рабочего домена
 
 ## Переменные окружения
 
-Файл `.grok/app-env.json` локальный и игнорируется Git. Его значения не
-переносятся в Vercel автоматически. Секреты задавайте в интерфейсе Vercel.
+**Для текущего бесплатного MVP+ специальные production env и secrets не нужны.**
+Публичные сценарии — камера/upload, локальные filters/recent, JPEG Share и PNG
+для самостоятельной печати. Accounts, сохранение в кабинет, заказ, payment и
+email backend недоступны в режиме `FREE_MVP` (`src/lib/pricing.ts`). Прямые
+`/print`, `/cabinet`, `/login`, `/studio` перенаправляются на главную; auth API
+возвращает 404, защищённые server functions отклоняют запрос до auth/DB.
 
-| Переменная | Preview / `pre-prod` | Production |
-| --- | --- | --- |
-| `DATABASE_URL` | Отдельная тестовая PostgreSQL БД | Production PostgreSQL БД |
-| `VITE_AUTH_ENABLED` | `true` для проверки с реальной БД | `true` |
-| `BETTER_AUTH_URL` | Полный постоянный HTTPS-адрес тестового контура | Полный HTTPS-адрес production |
-| `BETTER_AUTH_SECRET` | Постоянный случайный секрет тестового контура | Отдельный постоянный случайный секрет production |
+Не создавайте `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`,
+`VITE_AUTH_ENABLED`, OAuth/Grok credentials для этого релиза. Это параметры
+сохранённого шаблона для будущего этапа, а не зависимости публичного MVP+.
+`DATABASE_URL` оставьте незаданной: `npm run build` пропускает миграции без неё.
+В комплекте остаётся PGLite из шаблона; это не production database и публичный
+пользовательский flow не обращается к ней. Внешние БД/миграции не запускаются.
 
-Проверяйте вход с адреса, указанного в `BETTER_AUTH_URL`: текущая настройка
-auth доверяет этому origin, а случайные адреса отдельных Preview-деплоев
-могут не пройти проверку origin.
+`VERCEL_ENV` и `VERCEL_GIT_COMMIT_REF` предоставляет Vercel: включите
+**Automatically expose System Environment Variables**. Они нужны для метки
+`· pre-prod`; вручную задавать их и `VITE_APP_VERSION_LABEL` не нужно.
 
-Для существующего входа через Google/X дополнительно нужны выданные приложению
-`GROK_AUTH_ISSUER`, `GROK_AUTH_CLIENT_ID`, `GROK_AUTH_CLIENT_SECRET` и разрешённые
-callback URL для обоих контуров у брокера. Встроенный sandbox OAuth-клиент
-не является готовой настройкой для доменов Vercel. Email/password уже включён
-в коде и не требует OAuth-клиента брокера. Логика авторизации здесь не менялась.
+Production domain — `https://incsoul.ru/`. Share и canonical заданы в коде.
+OG/PWA определяют custom hostname из request host / forwarded host;
+`VITE_PUBLIC_HOSTNAME` не требуется. Не задавайте старый preview hostname.
+Если инфраструктура в будущем переписывает Host, необязательный override —
+`VITE_PUBLIC_HOSTNAME=incsoul.ru` (hostname без протокола и слеша).
 
-Если используются Grok connectors/gate, им также нужна действующая внешняя
-настройка (`GROK_CONNECTORS_URL`, а для gate identity — `GROK_PROJECT_ID` и
-`GROK_GATE_ORIGIN`) и инфраструктура, передающая проверенные credentials.
-Один импорт репозитория в Vercel эти сервисы не создаёт.
-
-Текущий `npm run build` после сборки запускает `db:migrate` и применяет
-ожидающие миграции к `DATABASE_URL` своего окружения. Поэтому Preview и
-Production должны использовать разные БД. При отсутствии `DATABASE_URL`
-шаг миграций пропускается; встроенный PGLite не заменяет постоянную БД для
-production. Сочетание реальной БД с `VITE_AUTH_ENABLED=false` отклоняет
-защищённые запросы в существующей реализации.
+Файл `.grok/app-env.json` локальный и игнорируется Git; на чистой сборке MVP+
+не требуется. Подключение accounts/DB/email в будущем требует отдельной задачи
+и отдельного аудита — это не часть release preparation.
 
 ## Сборка и проверка
 
@@ -171,7 +166,7 @@ Output Directory оставьте без override: не задавайте `dist
 
 После первого облачного деплоя проверьте открытие `/booth`, прямую загрузку
 страниц, камеру на телефоне, три кадра S3, JPEG Share/PNG download, повторную сессию,
-а при настроенной БД — вход и сохранение. Успешная локальная сборка не
+отсутствие цен и обращений к auth/order backend. Успешная локальная сборка не
 подтверждает работу внешних сервисов и устройства.
 
 Документация: [Git integration и Production Branch](https://vercel.com/docs/git),
@@ -234,3 +229,11 @@ Feature freeze: исправлены recovery повреждённого recent 
 на iOS install page; новые функции не добавлены. Дополнительная проверка:
 `node scripts/rc-regression.mjs` (BOOTH_BASE_URL по умолчанию localhost:8081;
 для Preview label задайте RC_PREVIEW=1).
+
+## Public MVP+ v0.1.0
+
+[Release preparation, environment audit и проверки](docs/release-preparation-v0.1.0.md).
+Бесплатный режим: «Бесплатно на этапе тестирования». Коммерческие суммы
+сохранены в config для будущего этапа и недоступны в публичном UI.
+Production deploy только после отдельного разрешения владельца:
+«Разрешаю production deploy v0.1.0».

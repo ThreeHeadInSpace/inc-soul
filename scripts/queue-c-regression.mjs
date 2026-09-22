@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { fromJSON } from "seroval";
 
 const output = new URL(`../artifacts/queue-c/${process.env.REGRESSION_LABEL || "dev"}/`, import.meta.url);
 await mkdir(output, { recursive: true });
@@ -54,7 +53,7 @@ async function checkShare(source) {
     return { active: share.active, text: share.data.text, keys: Object.keys(share.data).sort(), files: share.data.files.length, dimensionsMatch, url: share.data.url, type: share.data.files[0].type,
       same: await share.data.files[0].text() === await (await fetch(source)).text() };
   }, source);
-  assert.deepEqual(data, { active: true, text: "Сделано в сервисе inc&soul\nСсылка:", keys: ["files", "text"], files: 1, dimensionsMatch: true, url: undefined, type: "image/jpeg", same: true });
+  assert.deepEqual(data, { active: true, text: "Сделано в сервисе inc&soul\nhttps://incsoul.ru/", keys: ["files", "text"], files: 1, dimensionsMatch: true, url: undefined, type: "image/jpeg", same: true });
 }
 async function shareOnce(button) {
   const before = await page.evaluate(() => window.__shares.length);
@@ -83,7 +82,7 @@ try {
   await page.getByRole("button", { name: "Без фильтров", exact: true }).click(); await ready();
   assert.equal(await page.locator(".review-strip").getAttribute("src"), images[0]);
   pass("all 7 filters compose distinct previews; none restores pixels; fade absent");
-  assert.equal(await page.locator(".review-order svg.lucide-mail").count(), 1);
+  assert.equal(await page.locator(".review-order svg.lucide-mail").count(), 0);
   assert.equal(await page.locator('.review-actions a[download$=".jpg"]').count(), 0);
   for (const [width, height] of [[360,800],[390,844],[768,1024],[1024,768],[1366,768]]) {
     await page.setViewportSize({width,height});
@@ -99,7 +98,7 @@ try {
     await page.screenshot({path:fileURLToPath(new URL(`result-${width}.png`,output)),fullPage:true});
     await summary.click();
   }
-  pass("envelope CTA and centered 44px save trigger, closed/open at 5 viewports");
+  pass("order CTA absent; centered 44px save trigger, closed/open at 5 viewports");
   await page.setViewportSize({width:390,height:844});
   await shareOnce(page.getByRole("button", {name:"Поделиться",exact:true}));
   await checkShare(await page.evaluate(() => window.__jpeg));
@@ -122,7 +121,7 @@ try {
   await shareOnce(card.getByRole("button", {name:"Поделиться",exact:true})); await checkShare(source); assert.equal(await dialog.count(),0);
   await card.getByRole("button",{name:/Открыть снимок/}).click();
   assert.equal(await dialog.locator("img").getAttribute("src"),source);
-  for (const name of ["Скачать","Удалить","Заказать","Поделиться"]) assert.equal(await dialog.getByRole("button",{name,exact:true}).count(),1);
+  for (const name of ["Скачать","Удалить","Поделиться"]) assert.equal(await dialog.getByRole("button",{name,exact:true}).count(),1);
   await downloadFrom(dialog,source);
   await shareOnce(dialog.getByRole("button", {name:"Поделиться",exact:true})); await checkShare(source);
   for (const mode of ["abort", "error", "pending"]) {
@@ -141,7 +140,7 @@ try {
     await page.setViewportSize({width,height});
     const box = await dialog.boundingBox();
     assert.ok(box.x>=0 && box.y>=0 && box.x+box.width<=width+1 && box.y+box.height<=height+1);
-    await dialog.getByRole("button",{name:"Заказать",exact:true}).scrollIntoViewIfNeeded();
+    await dialog.getByRole("button",{name:"Удалить",exact:true}).scrollIntoViewIfNeeded();
   }
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:fileURLToPath(new URL("recent-preview.png",output)),fullPage:true});
@@ -149,49 +148,9 @@ try {
   assert.ok(await card.getByRole("button",{name:/Открыть снимок/}).evaluate(el=>el===document.activeElement));
   pass("recent card actions are isolated; preview/download/share, Escape and focus return");
   await card.getByRole("button",{name:/Открыть снимок/}).click();
-  await dialog.getByRole("button",{name:"Заказать",exact:true}).click();
-  await dialog.getByRole("link",{name:"Войти, чтобы заказать"}).waitFor();
-  assert.equal(await dialog.getByRole("link",{name:"Войти, чтобы заказать"}).getAttribute("href"),"/login");
-  await page.keyboard.press("Escape");
-  pass("recent order retains existing guest login gate");
-  await page.route("**/api/auth/get-session**", route=>route.fulfill({json:{session:{id:"test",userId:"test",expiresAt:"2099-01-01T00:00:00Z"},user:{id:"test",name:"Regression",email:"test@example.invalid"}}}));
-  await page.reload({waitUntil:"networkidle"});
-  await card.getByRole("button",{name:/Открыть снимок/}).click();
-  await dialog.getByRole("button",{name:"Заказать",exact:true}).click();
-  await dialog.getByRole("heading",{name:"Куда отправить"}).waitFor();
-  assert.equal(await dialog.locator("img").getAttribute("src"),source);
-  for (const [label,value] of [["ФИО","Тестовый Заказ"],["Телефон","+70000000000"],["Индекс","123456"],["Регион / область","Тест"],["Город","Тест"],["Улица","Тест"],["Дом","1"]]) await dialog.getByLabel(label,{exact:true}).fill(value);
-  let requestBody, releaseOrder;
-  let orderCalls = 0;
-  let orderSuccess = false;
-  await page.route("**/*",async route=>{
-    if(route.request().method()==="POST" && route.request().url().includes("_serverFn")) {
-      orderCalls++;
-      requestBody=route.request().postData();
-      if (orderSuccess) await route.fulfill({json:{result:{orderNumber:"TEST-C",totalPrice:368}}});
-      else { await new Promise(r=>{ releaseOrder=r; }); await route.fulfill({status:500,body:"Simulated order failure"}); }
-    } else await route.fallback();
-  });
-  await dialog.getByRole("button",{name:/Оформить/}).click();
-  await page.getByText("Отправляем заказ… Дождитесь подтверждения.").waitFor();
-  await page.keyboard.press("Escape"); assert.equal(await dialog.count(),1);
-  await dialog.getByRole("button",{name:"Отправляем…",exact:true}).evaluate(button=>button.click());
-  assert.equal(orderCalls,1);
-  releaseOrder();
-  await dialog.getByRole("alert").waitFor();
-  assert.ok(requestBody?.includes("копия из недавних"));
-  assert.ok(requestBody?.includes("shotsJpeg"));
-  const payload = fromJSON(JSON.parse(requestBody)).data;
-  assert.equal(payload.layoutId,"S3");
-  assert.deepEqual(payload.shotsJpeg,[payload.compositeJpeg]);
-  orderSuccess = true;
-  await dialog.getByRole("button",{name:/Оформить/}).click();
-  await dialog.getByRole("status").filter({hasText:"Заказ №TEST-C принят"}).waitFor();
-  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem("incsoul-gallery")).state.items[0].orderNumber),"TEST-C");
-  await page.keyboard.press("Escape");
-  await card.getByRole("button",{name:/Открыть снимок/}).click();
-  assert.equal(await dialog.locator("img").getAttribute("src"),source);
-  pass("authenticated recent order uses existing API, labels reduced source, handles failure and preserves preview (no real order)");
+  assert.equal(await dialog.getByRole("button",{name:"Заказать",exact:true}).count(),0);
+  assert.doesNotMatch(await dialog.innerText(), /₽|Войти|Оформить/);
+  pass("free MVP recent has download/share/delete without order or login");
   await dialog.getByRole("button",{name:"Удалить",exact:true}).click();
   assert.equal(await dialog.count(),0); assert.equal(await page.locator(".recent-photos figure").count(),0);
   await page.waitForFunction(()=>document.activeElement?.tagName==="A");

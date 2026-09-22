@@ -1,3 +1,7 @@
+// Public MVP+: commercial values stay available for a later release.
+export const FREE_MVP = true;
+export const FREE_MVP_LABEL = "Бесплатно на этапе тестирования";
+
 export const S3_PRODUCT = { price: 169, currency: "RUB" } as const;
 
 export const PRINT_PRICE_RUB = 49;

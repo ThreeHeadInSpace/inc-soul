@@ -216,7 +216,7 @@ try {
         assert.ok(Math.abs(metrics.strip.height/metrics.strip.width-3)<.01);
         assert.ok(metrics.strip.height/metrics.preview.height>.9);
         assert.ok(metrics.footer.y>=metrics.controls.bottom, 'footer after controls');
-        assert.match(metrics.price,/Печать 169 ₽/); assert.doesNotMatch(metrics.price,/отправка|доставка/);
+        assert.match(metrics.price,/Бесплатно на этапе тестирования/); assert.doesNotMatch(metrics.price,/отправка|доставка/);
         if (expanded) {
           const printBox=await page.getByRole('link',{name:'Скачать PNG для печати',exact:true}).boundingBox();
           assert.ok(printBox.height>=44 && printBox.width>=150);

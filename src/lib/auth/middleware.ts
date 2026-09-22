@@ -1,3 +1,4 @@
+import { FREE_MVP } from "../pricing";
 import { createMiddleware } from "@tanstack/react-start";
 
 /**
@@ -34,6 +35,7 @@ export const authMiddleware = createMiddleware({ type: "function" })
     return next({ sendContext: { bearerToken: getBearerToken() ?? undefined } });
   })
   .server(async ({ next, context }) => {
+    if (FREE_MVP) throw new Error("Accounts and orders are unavailable during public testing");
     // ONLY import `*.server` modules here. This file is dual client/server
     // (bearer hook on the client). A plain `./isolation` path was renamed to
     // `isolation.server.ts` — keep this import in sync so image `tsc` resolves
