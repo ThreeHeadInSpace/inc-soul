@@ -1,7 +1,7 @@
 import { open, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import nodemailer from "nodemailer";
+import { createPrintMailer } from "../src/lib/print-mail.mjs";
 import { z } from "zod";
 import { formatOrderDate } from "../src/lib/order-date.ts";
 
@@ -81,29 +81,9 @@ async function main() {
     console.error("Использование: npm run print:test-mail -- путь-к-заказу.json");
     return 1;
   }
-  const { SMTP_HOST = "smtp.yandex.ru", SMTP_PORT = "465", SMTP_USER, SMTP_PASSWORD,
-    PRINT_ORDERS_TO_EMAIL } = process.env;
-  if (SMTP_PORT !== "465" || !["smtp.yandex.ru", "smtp.yandex.com"].includes(SMTP_HOST) ||
-      !z.email().safeParse(SMTP_USER).success || !SMTP_PASSWORD ||
-      !z.email().safeParse(PRINT_ORDERS_TO_EMAIL).success) {
-    console.error("Проверьте параметры SMTP Яндекса и PRINT_ORDERS_TO_EMAIL.");
-    return 1;
-  }
-
+  const { smtp, from, to } = createPrintMailer();
   const { orderId, ...message } = await buildTestMessage(manifest);
   const markerPath = resolve(dirname(manifest), `${orderId}.smtp-status`);
-  const smtp = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT),
-    secure: true,
-    auth: { user: SMTP_USER, pass: SMTP_PASSWORD },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 30000,
-    disableFileAccess: true,
-    disableUrlAccess: true,
-  });
-
   try {
     await smtp.verify();
   } catch (error) {
@@ -124,9 +104,9 @@ async function main() {
     await marker.sync();
     const result = await smtp.sendMail({
       ...message,
-      from: SMTP_USER,
-      to: PRINT_ORDERS_TO_EMAIL,
-      messageId: `<print-test-${orderId}@${SMTP_USER.split("@")[1]}>`,
+      from,
+      to,
+      messageId: `<print-test-${orderId}@${from.split("@")[1]}>`,
     });
     if (result.accepted.length !== 1) throw new Error("Recipient rejected");
     await marker.writeFile("accepted\n");

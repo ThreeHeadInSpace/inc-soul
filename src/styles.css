@@ -390,8 +390,14 @@
 
 [data-booth-mode="workspace"] .review-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
+}
+
+@media (min-width: 1024px) {
+  [data-booth-mode="workspace"] .review-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 [data-booth-mode="workspace"] .review-actions > :is(a, button) {

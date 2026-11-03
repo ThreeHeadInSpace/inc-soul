@@ -8,11 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FilterBar } from "@/components/booth/FilterBar";
+import { FreePrintCheckout } from "@/components/booth/FreePrintCheckout";
 import { PrintMasterAction } from "@/components/booth/PrintMasterAction";
 import { ACTION_ERROR, AsyncNotice } from "@/components/booth/AsyncNotice";
 import {
   dataUrlToBlob,
   composeDigitalOutputs,
+  composePrintMaster,
+  fileToDataUrl,
   compressDataUrl,
 } from "@/lib/compose";
 import type { FilterId } from "@/lib/filters";
@@ -32,7 +35,9 @@ export function ReviewPane({
   onRetakeAll,
   onOrder,
   onComposite,
+  previewPrint = false,
 }: {
+  previewPrint?: boolean;
   stripId: string | null;
   layout: Layout;
   shots: Array<string | null>;
@@ -43,6 +48,8 @@ export function ReviewPane({
   onOrder: () => void;
   onComposite: (url: string) => void;
 }) {
+  const [ordering, setOrdering] = useState(false);
+  const [orderBusy, setOrderBusy] = useState(false);
   const user = useCurrentUser();
   const [composite, setComposite] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -293,6 +300,27 @@ export function ReviewPane({
                 <Share2 className="size-4" />
                 {sharing ? "Открываем…" : "Поделиться"}
               </Button>
+            )}
+            {previewPrint && isS3 && (
+              <Dialog.Root open={ordering} onOpenChange={(open) => { if (!orderBusy) setOrdering(open); }}>
+                <Dialog.Trigger asChild>
+                  <Button className="review-order min-h-12 w-full bg-[#fff5e9] text-[#471728] hover:bg-[#f6e5d7]" disabled={!resultReady || !stripId}>
+                    <Mail className="size-4" aria-hidden="true" />
+                    Заказать печать
+                  </Button>
+                </Dialog.Trigger>
+                <Dialog.Portal>
+                  <Dialog.Overlay className="fixed inset-0 z-50 bg-black/80" />
+                  <Dialog.Content className="fixed left-1/2 top-1/2 z-50 grid max-h-[90dvh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-2xl bg-bg-elevated p-5">
+                    <FreePrintCheckout preview={preview} onBusy={setOrderBusy} prepare={async () => {
+                      if (!stripId) throw new Error("Нет ID фотоленты");
+                      const { blob } = await composePrintMaster(layout, shots, filterId, { caption, dateLabel });
+                      const png = await fileToDataUrl(new File([blob], "print.png", { type: "image/png" }));
+                      return { stripId, caption, dateLabel, filterId, png };
+                    }} />
+                  </Dialog.Content>
+                </Dialog.Portal>
+              </Dialog.Root>
             )}
             <SecondaryActions className={isS3 ? "review-secondary" : "contents"}>
             {isS3 && <summary>Скачать / сохранить</summary>}

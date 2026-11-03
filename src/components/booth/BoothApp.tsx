@@ -43,7 +43,7 @@ export function HomeHub() {
         </h1>
         <p className="mt-4 max-w-xl text-base leading-relaxed text-fg-muted">
           Три снимка — одна вертикальная ленточка, как из классической фотобудки.
-          Добавьте фильтр и подпись, затем скачайте результат.
+          Добавьте фильтр и подпись, затем скачайте готовую фотоленту. Печать и доставку тестируем бесплатно в закрытом Preview.
         </p>
       </section>
       <div className="grid max-w-2xl gap-4">
@@ -83,11 +83,12 @@ function HubCard({
   );
 }
 
-export function BoothSession() {
+export function BoothSession({ previewPrint = false }: { previewPrint?: boolean } = {}) {
   return (
     <SessionFlow
       layouts={MVP_LAYOUTS}
       fixedLayout={MVP_LAYOUT}
+      previewPrint={previewPrint}
       kicker="Фотобудка"
       title="Ленточка из автомата"
       blurb="Три снимка — одна вертикальная ленточка."
@@ -114,6 +115,7 @@ function SessionFlow({
   blurb,
   groups = false,
   fixedLayout,
+  previewPrint = false,
 }: {
   layouts: Layout[];
   kicker: string;
@@ -121,6 +123,7 @@ function SessionFlow({
   blurb: string;
   groups?: boolean;
   fixedLayout?: Layout;
+  previewPrint?: boolean;
 }) {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>(fixedLayout ? "shoot" : "home");
@@ -277,6 +280,7 @@ function SessionFlow({
         // Keep the caption and finished JPEG alive while the camera edits a draft.
         <div className={retake ? "hidden" : "contents"}>
           <ReviewPane
+            previewPrint={previewPrint}
             stripId={galleryId}
             layout={layout}
             shots={shots}
