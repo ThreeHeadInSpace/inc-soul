@@ -23,6 +23,7 @@ import { formatRub } from "@/lib/utils";
 import { canShareJpeg, jpegSharePayload } from "@/lib/share";
 
 export function ReviewPane({
+  stripId,
   layout,
   shots,
   filterId,
@@ -32,6 +33,7 @@ export function ReviewPane({
   onOrder,
   onComposite,
 }: {
+  stripId: string | null;
   layout: Layout;
   shots: Array<string | null>;
   filterId: FilterId;
@@ -65,7 +67,7 @@ export function ReviewPane({
   const resultReady = Boolean(composite) && !generationPending && !generationError;
   const onCompositeRef = useRef(onComposite);
   onCompositeRef.current = onComposite;
-  const filename = `inc-soul-layout-${layout.id}.jpg`;
+  const filename = `inc-soul-layout-${layout.id}${stripId ? `-${stripId}` : ""}.jpg`;
   const jpegReady = jpeg?.source === composite;
   const canShare = useMemo(() => {
     return layout.id === "S3" && !!jpeg && canShareJpeg(jpeg.file);
@@ -149,8 +151,10 @@ export function ReviewPane({
       const compactShots = await Promise.all(
         filled.map((s) => compressDataUrl(s, 720, 0.75)),
       );
+      if (!stripId) return;
       await saveStrip({
         data: {
+          stripId,
           layoutId: layout.id,
           filterId,
           caption,
@@ -201,6 +205,7 @@ export function ReviewPane({
           <h2 className="font-display text-3xl tracking-tight">
             {layout.title}
           </h2>
+          {stripId && <p className="text-xs text-fg-muted" title={stripId}>Фотолента {stripId.slice(0, 8)}</p>}
           <p role="status" className="mt-1 text-sm text-fg-muted">
             {generationPending ? "Собираем ленточку…" : generationError ? "Ленточка не готова. Повторите сборку ниже." : <>{layout.sizeLabel} · {layout.poseLabel}. {isS3 ? "Ваша ленточка готова." : "Скачайте карточку или закажите печать."}</>}
           </p>
@@ -306,7 +311,7 @@ export function ReviewPane({
                 <Link to="/login">Войти, чтобы сохранить</Link>
               </Button>
             ))}
-            {isS3 && <PrintMasterAction layout={layout} shots={shots} filterId={filterId} caption={caption} dateLabel={dateLabel} ready={resultReady} />}
+            {isS3 && <PrintMasterAction stripId={stripId} layout={layout} shots={shots} filterId={filterId} caption={caption} dateLabel={dateLabel} ready={resultReady} />}
             </SecondaryActions>
             {!isS3 && retakeButton}
           </div>

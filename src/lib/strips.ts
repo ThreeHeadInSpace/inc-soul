@@ -4,6 +4,7 @@ import { getSql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 
 const saveInput = z.object({
+  stripId: z.uuid(),
   layoutId: z.string().min(1).max(8),
   filterId: z.string().min(1).max(24),
   caption: z.string().max(80).optional().default(""),
@@ -13,6 +14,7 @@ const saveInput = z.object({
 
 export type StripSummary = {
   id: number;
+  stripId: string;
   layoutId: string;
   filterId: string;
   caption: string;
@@ -27,9 +29,9 @@ export const saveStrip = createServerFn({ method: "POST" })
     const sql = await getSql();
     const shotsJson = JSON.stringify(data.shotsJpeg ?? []);
     const rows = await sql<{ id: number }>`
-      insert into strips (user_id, layout_id, filter_id, caption, composite_jpeg, shots_jpeg)
+      insert into strips (strip_id, user_id, layout_id, filter_id, caption, composite_jpeg, shots_jpeg)
       values (
-        ${context.userId}, ${data.layoutId}, ${data.filterId},
+        ${data.stripId}, ${context.userId}, ${data.layoutId}, ${data.filterId},
         ${data.caption ?? ""}, ${data.compositeJpeg}, ${shotsJson}
       )
       returning id
@@ -45,13 +47,14 @@ export const listStrips = createServerFn({ method: "GET" })
     const sql = await getSql();
     const rows = await sql<{
       id: number;
+      strip_id: string;
       layout_id: string;
       filter_id: string;
       caption: string;
       composite_jpeg: string;
       created_at: string;
     }>`
-      select id, layout_id, filter_id, caption, composite_jpeg,
+      select id, strip_id, layout_id, filter_id, caption, composite_jpeg,
              created_at::text as created_at
       from strips
       where user_id = ${context.userId}
@@ -61,6 +64,7 @@ export const listStrips = createServerFn({ method: "GET" })
     return rows.map(
       (row): StripSummary => ({
         id: row.id,
+        stripId: row.strip_id,
         layoutId: row.layout_id,
         filterId: row.filter_id,
         caption: row.caption,

@@ -100,7 +100,7 @@ function CabinetPage() {
                     onClick={() =>
                       downloadDataUrl(
                         strip.compositeJpeg,
-                        `inc-soul-${strip.layoutId}-${strip.id}.jpg`,
+                        `inc-soul-${strip.layoutId}-${strip.stripId}.jpg`,
                       )
                     }
                   >

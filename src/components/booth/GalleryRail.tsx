@@ -111,9 +111,9 @@ function RecentPhoto({ item, onRemoveFocus }: { item: GalleryItem; onRemoveFocus
           </div>
           <Dialog.Description id="recent-description" className="text-sm text-fg-muted">Снимок из недавних. Сохранена уменьшенная копия; качество печати ограничено.</Dialog.Description>
           {ordered ? (
-            <p role="status" className="py-6 text-center">Заказ №{ordered.number} принят · {formatRub(ordered.total)}</p>
+            <p role="status" className="py-6 text-center">Заказ №{ordered.number} принят · 1 фотолента · {formatRub(ordered.total)}</p>
           ) : ordering && layout ? (
-            user ? <OrderPane layout={layout} shots={[]} composite={item.composite} filterId={item.filterId} source="recent" onSubmittingChange={setSubmitting} onBack={() => setOrdering(false)} onDone={(number, total) => { markOrdered(item.id, number); setOrdered({ number, total }); }} /> : (
+            user ? <OrderPane stripId={item.id} layout={layout} shots={[]} composite={item.composite} filterId={item.filterId} source="recent" onSubmittingChange={setSubmitting} onBack={() => setOrdering(false)} onDone={(number, total) => { markOrdered(item.id, number); setOrdered({ number, total }); }} /> : (
               <div className="flex flex-col gap-3 py-4">
                 <p>Для заказа войдите, затем откройте этот снимок в недавних.</p>
                 <Button asChild><Link to="/login">Войти, чтобы заказать</Link></Button>

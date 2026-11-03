@@ -8,7 +8,8 @@ import { S3_PRINT_CANDIDATE } from "@/lib/print-output";
 
 type Master = Awaited<ReturnType<typeof composePrintMaster>>;
 
-export function PrintMasterAction({ layout, shots, filterId, caption, dateLabel, ready }: {
+export function PrintMasterAction({ stripId, layout, shots, filterId, caption, dateLabel, ready }: {
+  stripId: string | null;
   layout: Layout;
   shots: Array<string | null>;
   filterId: FilterId;
@@ -49,7 +50,7 @@ export function PrintMasterAction({ layout, shots, filterId, caption, dateLabel,
       <p className="text-xs text-fg-muted">Пробный размер для печати: 50,8 × 152,4 мм, {spec.dpi} DPI. Нужна контрольная печать.</p>
       {output && ready ? (
         <>
-          <a className={buttonVariants({ variant: "outline" })} href={output.url} download={`inc-soul-S3-candidate-${spec.widthMm}x${spec.heightMm}mm-${spec.dpi}dpi.png`}>Скачать PNG для печати</a>
+          <a className={buttonVariants({ variant: "outline" })} href={output.url} download={`inc-soul-S3-candidate-${spec.widthMm}x${spec.heightMm}mm-${spec.dpi}dpi${stripId ? `-${stripId}` : ""}.png`}>Скачать PNG для печати</a>
           <p role="status" className="text-xs text-fg-muted">
             {output.quality.width} × {output.quality.height} px. {output.quality.sufficient
               ? "Разрешения кадров достаточно для выбранных 300 DPI."

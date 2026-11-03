@@ -36,6 +36,7 @@ const emptyForm: FormState = {
 };
 
 export function OrderPane({
+  stripId,
   layout,
   shots,
   composite,
@@ -45,6 +46,7 @@ export function OrderPane({
   source = "captures",
   onSubmittingChange,
 }: {
+  stripId: string;
   layout: Layout;
   shots: Array<string | null>;
   composite: string | null;
@@ -58,6 +60,7 @@ export function OrderPane({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const submittingRef = useRef(false);
+  const orderId = useRef<string | null>(null);
   const prices = orderTotal(form.copies, layout.unitPrice);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -93,6 +96,8 @@ export function OrderPane({
       );
       const result = await placeOrder({
         data: {
+          orderId: (orderId.current ??= crypto.randomUUID()),
+          stripId,
           layoutId: layout.id,
           layoutName: `${layout.title} · ${layout.sizeLabel}${source === "recent" ? " · копия из недавних" : ""}`,
           customerName: form.customerName.trim(),

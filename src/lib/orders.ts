@@ -6,6 +6,13 @@ import { orderTotal } from "@/lib/pricing";
 import { getLayout } from "@/lib/layouts";
 
 const placeOrderInput = z.object({
+  orderId: z.uuid().transform((id) => id.toLowerCase()),
+  stripId: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/),
+  additionalStrips: z.array(z.object({
+    stripId: z.uuid(),
+    copies: z.number().int().min(1).max(12).optional(),
+    compositeJpeg: z.string().max(3_500_000).regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/),
+  })).max(7).default([]),
   layoutId: z.string().min(1).max(8),
   layoutName: z.string().min(1).max(80),
   customerName: z.string().min(2).max(120),
@@ -24,6 +31,7 @@ const placeOrderInput = z.object({
 export type OrderSummary = {
   id: number;
   orderNumber: string;
+  stripIds: string[];
   layoutId: string;
   layoutName: string;
   customerName: string;
@@ -50,6 +58,7 @@ export type OrderDetail = OrderSummary & {
 type OrderRow = {
   id: number;
   order_number: string;
+  strip_ids: string[];
   layout_id: string;
   layout_name: string;
   customer_name: string;
@@ -74,6 +83,7 @@ function toSummary(row: OrderRow): OrderSummary {
   return {
     id: row.id,
     orderNumber: row.order_number,
+    stripIds: row.strip_ids,
     layoutId: row.layout_id,
     layoutName: row.layout_name,
     customerName: row.customer_name,
@@ -98,32 +108,37 @@ export const placeOrder = createServerFn({ method: "POST" })
   .validator(placeOrderInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const seq = await sql<{ n: number }>`
-      update order_seq set n = n + 1 where id = 1 returning n
-    `;
-    const n = seq[0]?.n ?? 1;
-    const orderNumber = String(n).padStart(5, "0");
+    const stripIds = [data.stripId, ...data.additionalStrips.map((strip) => strip.stripId)];
+    if (new Set(stripIds).size !== stripIds.length) throw new Error("Фотоленты повторяются");
     const unit = getLayout(data.layoutId)?.unitPrice ?? 49;
     const prices = orderTotal(data.copies, unit);
+    const printPrice = data.additionalStrips.reduce(
+      (total, strip) => total + orderTotal(strip.copies ?? prices.copies, unit).print,
+      prices.print,
+    );
+    const totalPrice = printPrice + prices.shipping;
     const shotsJson = JSON.stringify(data.shotsJpeg);
 
-    const rows = await sql<{ order_number: string; total_price: number }>`
+    await sql`
       insert into print_orders (
-        order_number, layout_id, layout_name,
+        request_id, layout_id, layout_name,
         customer_name, phone, postal_code, region, city, street, building, apartment,
         copies, print_price, shipping_price, total_price,
-        composite_jpeg, shots_jpeg, status, user_id
+        composite_jpeg, shots_jpeg, status, user_id, strip_ids, additional_strips
       ) values (
-        ${orderNumber}, ${data.layoutId}, ${data.layoutName},
+        ${data.orderId}, ${data.layoutId}, ${data.layoutName},
         ${data.customerName}, ${data.phone}, ${data.postalCode}, ${data.region},
         ${data.city}, ${data.street}, ${data.building}, ${data.apartment ?? ""},
-        ${prices.copies}, ${prices.print}, ${prices.shipping}, ${prices.total},
-        ${data.compositeJpeg}, ${shotsJson}, ${"new"}, ${context.userId}
+        ${prices.copies}, ${printPrice}, ${prices.shipping}, ${totalPrice},
+        ${data.compositeJpeg}, ${shotsJson}, ${"new"}, ${context.userId}, ${stripIds}::text[], ${JSON.stringify(data.additionalStrips)}::jsonb
       )
-      returning order_number, total_price
+      on conflict (request_id) do nothing
     `;
 
-    const row = rows[0];
+    const [row] = await sql<{ order_number: string; total_price: number }>`
+      select order_number, total_price from print_orders
+      where request_id = ${data.orderId} and user_id = ${context.userId}
+    `;
     if (!row) throw new Error("Не удалось сохранить заказ");
     return {
       orderNumber: row.order_number,
@@ -137,7 +152,7 @@ export const listOrders = createServerFn({ method: "GET" })
     const sql = await getSql();
     const rows = await sql<OrderRow>`
       select
-        id, order_number, layout_id, layout_name,
+        id, order_number, strip_ids, layout_id, layout_name,
         customer_name, phone, postal_code, region, city, street, building, apartment,
         copies, print_price, shipping_price, total_price, status,
         created_at::text as created_at
@@ -151,12 +166,12 @@ export const listOrders = createServerFn({ method: "GET" })
 
 export const getOrder = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator(z.object({ orderNumber: z.string().min(1).max(12) }))
+  .validator(z.object({ orderNumber: z.string().min(1).max(36) }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const rows = await sql<OrderRow>`
       select
-        id, order_number, layout_id, layout_name,
+        id, order_number, strip_ids, layout_id, layout_name,
         customer_name, phone, postal_code, region, city, street, building, apartment,
         copies, print_price, shipping_price, total_price, status,
         created_at::text as created_at,

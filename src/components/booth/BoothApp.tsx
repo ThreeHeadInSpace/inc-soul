@@ -163,7 +163,7 @@ function SessionFlow({
     setComposite(url);
     if (!layoutId) return;
     const revision = ++galleryRevisionRef.current;
-    const id = galleryIdRef.current ?? `g-${crypto.randomUUID()}`;
+    const id = galleryIdRef.current ?? crypto.randomUUID();
     galleryIdRef.current = id;
     setGalleryId(id);
     setGalleryError(false);
@@ -277,6 +277,7 @@ function SessionFlow({
         // Keep the caption and finished JPEG alive while the camera edits a draft.
         <div className={retake ? "hidden" : "contents"}>
           <ReviewPane
+            stripId={galleryId}
             layout={layout}
             shots={shots}
             filterId={filterId}
@@ -290,8 +291,9 @@ function SessionFlow({
       )}
       {step === "review" && !retake && galleryError && <AsyncNotice error message="Не удалось добавить ленточку в недавние фото. Подготовьте и скачайте файл для печати с этого экрана." />}
 
-      {step === "order" && layout && (
+      {step === "order" && layout && galleryId && (
         <OrderPane
+          stripId={galleryId}
           layout={layout}
           shots={shots}
           composite={composite}
@@ -354,11 +356,11 @@ function SuccessPane({
     <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-6 py-8 text-center">
       <p className="text-xs uppercase tracking-caps text-fg-subtle">Заказ принят</p>
       <h2 className="font-display text-4xl tracking-tight">Спасибо</h2>
-      <p className="font-display text-6xl tabular-nums tracking-tight text-paper">
+      <p className="font-display break-all text-2xl tabular-nums tracking-tight text-paper">
         №{orderNumber}
       </p>
       <p className="max-w-md text-sm leading-relaxed text-fg-muted">
-        Макет, адрес и кадры ушли в студию. Распечатаем и отправим Почтой России. Сумма{" "}
+        Фотолент в заказе: 1. Заказ сохранён. Сумма{" "}
         {formatRub(total)}.
       </p>
       {composite && (

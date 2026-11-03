@@ -50,7 +50,7 @@ export const useGallery = create<GalleryState>()(
       add: (item) =>
         set((state) => {
           const next: GalleryItem = {
-            id: item.id ?? `g-${Date.now()}`,
+            id: item.id ?? crypto.randomUUID(),
             layoutId: item.layoutId,
             filterId: item.filterId,
             composite: item.composite,

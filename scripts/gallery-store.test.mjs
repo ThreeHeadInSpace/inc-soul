@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -14,7 +15,7 @@ const source = ts.transpileModule(readFileSync(new URL("../src/lib/gallery-store
 function restore(state) {
   let saved = typeof state === "string" ? state : JSON.stringify({ state, version: 0 });
   const context = {
-    exports: {}, window: {},
+    exports: {}, window: {}, crypto: webcrypto,
     localStorage: { getItem: () => saved, setItem: (_key, value) => { saved = value; } },
     require: (name) => name === "@/lib/layouts" ? layouts : require(name),
   };
@@ -41,4 +42,15 @@ test("recent-photo hydration keeps valid records and live actions, deduplicates 
   assert.equal(store.getState().items.length, 15);
   store.getState().add({ ...good, id: "new" });
   assert.equal(store.getState().items[0].id, "new");
+});
+
+test("new strips get distinct UUIDs and keep them when reopened from storage", () => {
+  const store = restore(null);
+  const { id: _legacyId, ...photo } = good;
+  store.getState().add(photo);
+  store.getState().add(photo);
+  const items = store.getState().items;
+  assert.equal(new Set(items.map(({ id }) => id)).size, 2);
+  for (const { id } of items) assert.match(id, /^[0-9a-f-]{36}$/);
+  assert.equal(JSON.stringify(restore({ items }).getState().items), JSON.stringify(items));
 });
