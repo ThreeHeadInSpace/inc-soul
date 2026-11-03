@@ -27,6 +27,7 @@ test("requires a valid delivery address, contact and consent", () => {
 test("stores one free order with PNG, retries after SMTP failure and claims mail once", async () => {
   const pg = new PGlite();
   try {
+    await pg.exec("create table _migrations (name text primary key, applied_at timestamptz not null default now())");
     const dir = new URL("../migrations/", import.meta.url);
     for (const file of (await readdir(dir)).filter((name) => name.endsWith(".sql")).sort()) {
       await pg.exec(await readFile(new URL(file, dir), "utf8"));
