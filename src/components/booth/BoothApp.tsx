@@ -338,8 +338,9 @@ export function PageFrame({ children, boothMode }: { children: ReactNode; boothM
         <AppHeader />
         {children}
       </div>
-      <footer aria-label="Версия приложения" className="absolute inset-x-0 bottom-0 text-center text-[10px] leading-3 text-fg-subtle">
-        {import.meta.env.VITE_APP_VERSION_LABEL}
+      <footer aria-label="Информация о сайте" className="absolute inset-x-0 bottom-0 grid gap-2 px-10 pb-2 text-center text-[10px] leading-3 text-fg-subtle">
+        <Link to="/privacy" className="text-xs underline underline-offset-4">Обработка данных · проект</Link>
+        <span>{import.meta.env.VITE_APP_VERSION_LABEL}</span>
       </footer>
     </div>
   );

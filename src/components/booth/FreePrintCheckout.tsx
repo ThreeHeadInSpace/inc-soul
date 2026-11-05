@@ -268,6 +268,13 @@ export function FreePrintCheckout({
               Подтверждаю, что использую вымышленные данные, и согласен на их обработку для
               тестирования оформления и доставки.
             </label>
+            <p className="text-xs text-fg-muted">
+              Документы находятся на согласовании.{" "}
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Проект политики обработки данных</Link>
+              {" · "}
+              <Link to="/privacy" hash="consent" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">Отдельный проект согласия</Link>.
+              Текущий чекбокс относится только к закрытому тестированию.
+            </p>
             {errors.consent && (
               <p id="print-error-consent" className="text-sm text-danger">
                 {errors.consent}

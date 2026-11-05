@@ -14,6 +14,7 @@ import { Route as BoothRouteImport } from './routes/booth'
 import { Route as CabinetRouteImport } from './routes/cabinet'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrintRouteImport } from './routes/print'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -42,6 +43,11 @@ const PrintRoute = PrintRouteImport.update({
   path: '/print',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StudioRoute = StudioRouteImport.update({
   id: '/studio',
   path: '/studio',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/cabinet': typeof CabinetRoute
   '/login': typeof LoginRoute
   '/print': typeof PrintRoute
+  '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/cabinet': typeof CabinetRoute
   '/login': typeof LoginRoute
   '/print': typeof PrintRoute
+  '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/cabinet': typeof CabinetRoute
   '/login': typeof LoginRoute
   '/print': typeof PrintRoute
+  '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/cabinet'
     | '/login'
     | '/print'
+    | '/privacy'
     | '/studio'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/cabinet'
     | '/login'
     | '/print'
+    | '/privacy'
     | '/studio'
     | '/api/auth/$'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/cabinet'
     | '/login'
     | '/print'
+    | '/privacy'
     | '/studio'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
@@ -117,6 +129,7 @@ export interface RootRouteChildren {
   CabinetRoute: typeof CabinetRoute
   LoginRoute: typeof LoginRoute
   PrintRoute: typeof PrintRoute
+  PrivacyRoute: typeof PrivacyRoute
   StudioRoute: typeof StudioRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrintRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/studio': {
       id: '/studio'
       path: '/studio'
@@ -181,6 +201,7 @@ const rootRouteChildren: RootRouteChildren = {
   CabinetRoute: CabinetRoute,
   LoginRoute: LoginRoute,
   PrintRoute: PrintRoute,
+  PrivacyRoute: PrivacyRoute,
   StudioRoute: StudioRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
