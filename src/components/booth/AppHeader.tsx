@@ -1,3 +1,4 @@
+import { CartButton } from "./Cart";
 import { FREE_MVP } from "@/lib/pricing";
 import { Link } from "@tanstack/react-router";
 import { UserButton } from "@/lib/auth/gates";
@@ -15,6 +16,7 @@ export function AppHeader() {
           Photobooth
         </span>
       </Link>
+      <CartButton />
       {!FREE_MVP && <nav className="flex items-center gap-2">
         <Button variant="primary" asChild>
           <Link to="/cabinet">

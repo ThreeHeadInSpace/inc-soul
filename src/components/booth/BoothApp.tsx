@@ -164,7 +164,7 @@ function SessionFlow({
 
   const handleComposite = useCallback(async (url: string) => {
     setComposite(url);
-    if (!layoutId) return;
+    if (!layoutId || layoutId === "S3") return;
     const revision = ++galleryRevisionRef.current;
     const id = galleryIdRef.current ?? crypto.randomUUID();
     galleryIdRef.current = id;

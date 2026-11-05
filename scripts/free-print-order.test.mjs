@@ -41,7 +41,7 @@ test("stores one free order with PNG, retries after SMTP failure and claims mail
     const input = { requestId: randomUUID(), stripId: randomUUID(), caption: "Тест", filterId: "none", dateLabel: "04.11.2026", delivery };
     const initial = await registerFreePrintOrder(sql, input, png, (db, id) =>
       notifyFreePrintOrder(db, id, () => { throw new Error("SMTP offline"); }));
-    assert.deepEqual(initial, { ok: true, orderNumber: "000-001", notified: false });
+    assert.deepEqual(initial, { ok: true, orderNumber: "000-001", copies: 1, notified: false });
     const [saved] = await sql`select * from print_orders`;
     assert.equal(saved.notification_status, "failed");
     assert.equal(saved.order_type, "free_beta");
@@ -49,7 +49,9 @@ test("stores one free order with PNG, retries after SMTP failure and claims mail
     assert.equal(saved.postal_code, delivery.postalCode);
     assert.ok(saved.consent_at);
     assert.deepEqual([saved.print_price, saved.shipping_price, saved.total_price], [0, 0, 0]);
-    assert.deepEqual(Buffer.from(saved.print_png), png);
+    const [item] = await sql`select * from print_order_items`;
+    assert.equal(item.quantity,1);
+    assert.deepEqual(Buffer.from(item.png), png);
 
     const messages = [];
     const retry = () => registerFreePrintOrder(sql, input, png, (db, id) =>
