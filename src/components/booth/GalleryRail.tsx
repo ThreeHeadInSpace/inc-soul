@@ -86,7 +86,7 @@ function RecentPhoto({ item, onRemoveFocus }: { item: GalleryItem; onRemoveFocus
     };
   }, [open, printable, item.id]);
   async function addToCart(checkout = false) {
-    await cart.add(item.id, item.composite, checkout);
+    await cart.add(item.id, checkout);
     if (checkout) setOpen(false);
   }
   const remove = useGallery((s) => s.remove);

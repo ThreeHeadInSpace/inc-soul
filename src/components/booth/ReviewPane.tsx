@@ -1,15 +1,14 @@
 import { FREE_MVP, FREE_MVP_LABEL } from "@/lib/pricing";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { FolderPlus, Mail, RotateCcw, Share2, X } from "lucide-react";
-import * as Dialog from "@radix-ui/react-dialog";
+import { FolderPlus, Mail, RotateCcw, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FilterBar } from "@/components/booth/FilterBar";
-import { useCart } from "./Cart";
-import { savePrintAsset } from "@/lib/cart-store";
+import { useCart, StripLightbox } from "./Cart";
+import { savePrintAsset, readPrintAsset } from "@/lib/cart-store";
 import { useGallery } from "@/lib/gallery-store";
 import { ShoppingCart } from "lucide-react";
 import { PrintMasterAction } from "@/components/booth/PrintMasterAction";
@@ -136,7 +135,7 @@ export function ReviewPane({
     if (!original || adding) return;
     setAdding(true);
     try {
-      await cart.add(original.id, original.preview, checkout);
+      await cart.add(original.id, checkout);
     } finally {
       setAdding(false);
     }
@@ -314,41 +313,21 @@ export function ReviewPane({
         <div className="review-preview overflow-hidden rounded-2xl bg-bg-elevated p-3 shadow-[var(--shadow-border)] lg:col-span-2">
           <div className="review-paper flex min-h-72 items-center justify-center rounded-xl bg-paper p-4">
             {preview && isS3 ? (
-              <Dialog.Root>
-                <Dialog.Trigger asChild>
-                  <button
-                    type="button"
-                    className="review-enlarge"
-                    aria-label="Увеличить фотополоску"
-                    disabled={!resultReady}
-                  >
-                    <img src={preview} alt={`Макет ${layout.id}`} className="review-strip" />
-                  </button>
-                </Dialog.Trigger>
-                <Dialog.Portal>
-                  <Dialog.Overlay className="fixed inset-0 z-50 bg-black/80" />
-                  <Dialog.Content className="strip-lightbox" aria-describedby={undefined}>
-                    <Dialog.Title className="sr-only">
-                      Увеличенный просмотр фотополоски
-                    </Dialog.Title>
-                    <Dialog.Close asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="self-end"
-                        aria-label="Закрыть просмотр"
-                      >
-                        <X className="size-5" />
-                      </Button>
-                    </Dialog.Close>
-                    <img
-                      src={preview}
-                      alt="Фотополоска S3 целиком"
-                      className="strip-lightbox-image"
-                    />
-                  </Dialog.Content>
-                </Dialog.Portal>
-              </Dialog.Root>
+              <StripLightbox
+                load={async () => {
+                  const asset = original ? await readPrintAsset(original.id) : undefined;
+                  return asset?.png ?? dataUrlToBlob(preview);
+                }}
+              >
+                <button
+                  type="button"
+                  className="review-enlarge"
+                  aria-label="Увеличить фотополоску"
+                  disabled={!resultReady}
+                >
+                  <img src={preview} alt={`Макет ${layout.id}`} className="review-strip" />
+                </button>
+              </StripLightbox>
             ) : preview ? (
               <img
                 src={preview}

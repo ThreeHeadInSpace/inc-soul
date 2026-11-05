@@ -65,7 +65,7 @@ export function StripLightbox({
 type CartContext = {
   enabled: boolean;
   lines: CartLine[];
-  add: (id: string, preview: string, checkout?: boolean) => Promise<void>;
+  add: (id: string, checkout?: boolean) => Promise<void>;
   openCart: () => void;
 };
 const Context = createContext<CartContext>({
@@ -122,9 +122,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     window.addEventListener("incsoul-cart", refresh);
     return () => window.removeEventListener("incsoul-cart", refresh);
   }, []);
-  async function add(id: string, preview: string, checkout = false) {
+  async function add(id: string, checkout = false) {
     try {
-      await changeCart(id, "add", preview);
+      await changeCart(id, "add");
       toast.success("Фотолента в корзине", {
         action: {
           label: "Перейти в корзину",

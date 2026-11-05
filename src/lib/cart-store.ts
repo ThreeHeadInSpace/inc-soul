@@ -119,7 +119,7 @@ export function readCart() {
     },
   );
 }
-export async function changeCart(id: string, quantity: number | "add", preview = "") {
+export async function changeCart(id: string, quantity: number | "add") {
   await transaction<void>(["cart", "state", "assets"], "readwrite", (tx) => {
     const cart = tx.objectStore("cart");
     tx.objectStore("state").get("pending").onsuccess = (event) => {
@@ -136,7 +136,7 @@ export async function changeCart(id: string, quantity: number | "add", preview =
           }
           cart.get(id).onsuccess = (event) => {
             if (!(event.target as IDBRequest).result)
-              cart.put({ stripId: id, quantity: 1, preview });
+              cart.put({ stripId: id, quantity: 1, preview: asset.preview });
           };
         };
       } else if (quantity === 0) cart.delete(id);

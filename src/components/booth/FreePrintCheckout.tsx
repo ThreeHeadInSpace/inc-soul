@@ -42,15 +42,19 @@ export function FreePrintCheckout({
   draft: Record<string, string>;
   onDraft: (draft: Record<string, string>) => void;
 }) {
-  const [initialLines] = useState(lines);
-  const displayLines = lines.length ? lines : initialLines;
   const [reviewing, setReviewing] = useState(false);
   const [delivery, setDelivery] = useState<PrintDelivery>();
   const [errors, setErrors] = useState<Partial<Record<keyof PrintDelivery, string>>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [receipt, setReceipt] = useState<{ number: string; notified: boolean; copies: number }>();
+  const [receipt, setReceipt] = useState<{
+    number: string;
+    notified: boolean;
+    copies: number;
+    lines: CartLine[];
+  }>();
 
+  const displayLines = receipt?.lines ?? lines;
   const lock = useRef(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -101,6 +105,7 @@ export function FreePrintCheckout({
           number: status.orderNumber,
           notified: status.notified,
           copies: status.copies,
+          lines: request.lines,
         });
         return;
       }
@@ -141,6 +146,7 @@ export function FreePrintCheckout({
           number: result.orderNumber,
           notified: result.notified,
           copies: result.copies,
+          lines: request.lines,
         });
       }
     } catch {

@@ -25,10 +25,14 @@ export async function adoptLegacyPrint(id: string, composite: string, filterId: 
       "image/png",
     ),
   );
+  const thumb = document.createElement("canvas");
+  thumb.width = 120;
+  thumb.height = 360;
+  thumb.getContext("2d")?.drawImage(canvas, 0, 0, 120, 360);
   await savePrintAsset({
     id,
     png: await pngWithDpi(png, 300),
-    preview: composite,
+    preview: thumb.toDataURL("image/jpeg", 0.8),
     filterId,
     caption: "",
     dateLabel: "",
