@@ -22,6 +22,7 @@ function previewAccessCode() {
   const code = process.env.PRINT_PREVIEW_ACCESS_CODE;
   if (
     FREE_MVP &&
+    !import.meta.env.INC_SOUL_NODE_BUILD &&
     process.env.VERCEL_ENV === "preview" &&
     dbSource === "neon" &&
     code &&

@@ -13,6 +13,9 @@ import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
 import packageInfo from "./package.json" with { type: "json" };
 
+// Only the dedicated launcher selects Node; existing Vercel builds stay Vercel.
+const nodeBuild = process.env.INC_SOUL_BUILD_TARGET === "node";
+
 const appVersionLabel = `v${packageInfo.version}${
   process.env.VERCEL_ENV === "preview" && process.env.VERCEL_GIT_COMMIT_REF === "pre-prod"
     ? " · pre-prod"
@@ -154,6 +157,7 @@ function authPopupPlugin(): Plugin {
 // AGENTS.md § "First scaffold".
 export default defineConfig(({ command, isPreview }) => ({
   define: {
+    "import.meta.env.INC_SOUL_NODE_BUILD": JSON.stringify(nodeBuild),
     "import.meta.env.VITE_APP_VERSION_LABEL": JSON.stringify(appVersionLabel),
   },
   server: {
@@ -167,6 +171,8 @@ export default defineConfig(({ command, isPreview }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  // Portable builds must never load workspace .env files (including secrets).
+  ...(process.env.INC_SOUL_BUILD_TARGET ? { envDir: false as const } : {}),
   plugins: [
     pgliteBootstrapPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
@@ -180,7 +186,7 @@ export default defineConfig(({ command, isPreview }) => ({
     ...(command === "build" || isPreview
       ? [
           nitro({
-            preset: "vercel",
+            preset: nodeBuild ? "node-server" : "vercel",
             // Auto-registers server/middleware/* (the PWA install page +
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.

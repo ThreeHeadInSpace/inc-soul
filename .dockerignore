@@ -1,0 +1,23 @@
+# Allowlist: workspace credentials, metadata and artifacts never enter build context.
+**
+!package.json
+!package-lock.json
+!vite.config.ts
+!tsconfig.json
+!src/
+!src/**
+!server/
+!server/**
+!public/
+!public/**
+!scripts/
+!scripts/**
+!migrations/
+!migrations/**
+# Defense in depth for nested credentials and local artifacts.
+**/.env*
+**/*.pem
+**/*.key
+**/*.log
+**/node_modules
+**/.git
