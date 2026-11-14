@@ -1,0 +1,10 @@
+# Reference config for a SEPARATE temporary service; do not replace root amvera.yaml.
+meta:
+  environment: docker
+  toolchain:
+    name: docker
+build:
+  dockerfile: deploy/amvera/Dockerfile.migrations
+run:
+  command: node
+  args: scripts/amvera-migrate.mjs --plan
