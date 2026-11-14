@@ -32,16 +32,16 @@ export async function inspectIdentity(client) {
   const { rows: [state] } = await client.query(`
     select current_database() as db, current_user as role, session_user as login,
       current_setting('server_version_num')::int as version,
-      (select rolsuper or rolcreatedb or rolcreaterole or rolbypassrls from pg_roles where rolname=current_user) as elevated,
-      (select rolsuper or rolcreatedb or rolcreaterole or rolbypassrls from pg_roles where rolname='incsoul_app') as app_elevated,
-      pg_has_role('incsoul_app','incsoul_migrator','MEMBER') as app_member,
-      has_schema_privilege('incsoul_app','public','CREATE') as app_create,
-      has_database_privilege('incsoul_app',current_database(),'CREATE') as app_db_create,
+      (select rolsuper or rolcreatedb or rolcreaterole or rolreplication or rolbypassrls from pg_roles where rolname=current_user) as elevated,
+      (select rolsuper or rolcreatedb or rolcreaterole or rolreplication or rolbypassrls from pg_roles where rolname='incsoulApp') as app_elevated,
+      pg_has_role('incsoulApp','incsoul_migrator','MEMBER') as app_member,
+      has_schema_privilege('incsoulApp','public','CREATE') as app_create,
+      has_database_privilege('incsoulApp',current_database(),'CREATE') as app_db_create,
       (select pg_get_userbyid(datdba) from pg_database where datname=current_database()) as owner
   `);
   if (state.db !== "incsoul_stage" || state.role !== "incsoul_migrator" || state.login !== state.role ||
       state.version < 170000 || state.version >= 180000 || state.elevated !== false ||
-      state.app_elevated !== false || state.app_member || state.app_create || state.app_db_create ||
+      state.app_elevated !== false || state.app_member !== false || state.app_create !== false || state.app_db_create !== false ||
       state.owner !== "incsoul_migrator") {
     throw new Error("Database identity/version/role isolation check failed; review bootstrap-roles.sql");
   }
@@ -83,7 +83,7 @@ export async function applyBaseline(client, plan) {
       await client.query(`create table public._amvera_migrations (
         name text primary key, sha256 text not null check(length(sha256)=64),
         applied_at timestamptz not null default now())`);
-      await client.query("revoke all on public._amvera_migrations from public,incsoul_app");
+      await client.query('revoke all on public._amvera_migrations from public,"incsoulApp"');
       await client.query("alter table public._amvera_migrations enable row level security");
       await client.query(plan.sql);
       await client.query("insert into public._amvera_migrations(name,sha256) values($1,$2)", [plan.name, plan.sha256]);

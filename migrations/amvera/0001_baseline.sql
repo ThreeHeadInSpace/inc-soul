@@ -161,17 +161,17 @@ begin
   loop
     execute format('alter table public.%I enable row level security',t);
     execute format('revoke all on public.%I from public',t);
-    execute format('create policy app_server on public.%I to incsoul_app using(true) with check(true)',t);
+    execute format('create policy app_server on public.%I to "incsoulApp" using(true) with check(true)',t);
   end loop;
 end $$;
-grant usage on schema public to incsoul_app;
+grant usage on schema public to "incsoulApp";
 grant select,insert,update,delete on public."user",public."session",public.account,
-  public.verification,public.strips to incsoul_app;
-grant select,insert,update on public.print_orders,public.print_order_limits to incsoul_app;
-grant select,update on public.order_seq to incsoul_app;
-grant select,insert,delete on public.print_uploads to incsoul_app;
-grant select,insert on public.print_order_items to incsoul_app;
+  public.verification,public.strips to "incsoulApp";
+grant select,insert,update on public.print_orders,public.print_order_limits to "incsoulApp";
+grant select,update on public.order_seq to "incsoulApp";
+grant select,insert,delete on public.print_uploads to "incsoulApp";
+grant select,insert on public.print_order_items to "incsoulApp";
 revoke all on sequence public.print_orders_id_seq,public.strips_id_seq from public;
-grant usage on sequence public.print_orders_id_seq,public.strips_id_seq to incsoul_app;
+grant usage on sequence public.print_orders_id_seq,public.strips_id_seq to "incsoulApp";
 revoke all on function public.assign_print_order_number() from public;
-grant execute on function public.assign_print_order_number() to incsoul_app;
+grant execute on function public.assign_print_order_number() to "incsoulApp";

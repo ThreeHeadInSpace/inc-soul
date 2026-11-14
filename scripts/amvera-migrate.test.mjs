@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { readFile, readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
-import { loadPlan, applyBaseline, validateTarget, inspectHistory } from "./amvera-migrate.mjs";
+import { loadPlan, applyBaseline, validateTarget, inspectHistory, inspectIdentity } from "./amvera-migrate.mjs";
 import { registerCartPrintOrder } from "../src/lib/free-print-store.server.ts";
 
 const host = "amvera-test-cnpg-incsoul-db-stage-rw";
@@ -17,7 +17,7 @@ test("target guard rejects runtime, external, wrong database and connection opti
   for (const env of [ {}, { ...target, AMVERA_DB_HOST: "other" },
     ...[target.DATABASE_URL.replace(host,"localhost"),
       target.DATABASE_URL.replace("incsoul_stage","production"),
-      target.DATABASE_URL.replace("incsoul_migrator","incsoul_app"),
+      target.DATABASE_URL.replace("incsoul_migrator","incsoulApp"),
       target.DATABASE_URL + "?options=-csearch_path=other", target.DATABASE_URL.replace("-rw", "-ro")]
       .map((DATABASE_URL) => ({ ...target, DATABASE_URL })) ]) {
     assert.throws(() => validateTarget(env));
@@ -29,7 +29,7 @@ async function createDb() {
   // pg uses the simple-query protocol for parameterless multi-statement SQL.
   const query = db.query.bind(db);
   db.query = (sql, params) => params ? query(sql,params) : db.exec(sql).then((r) => r.at(-1));
-  await db.exec(`create role incsoul_migrator; create role incsoul_app;
+  await db.exec(`create role incsoul_migrator login; create role "incsoulApp" login;
     revoke create on schema public from public;
     grant usage,create on schema public to incsoul_migrator;
     set role incsoul_migrator`);
@@ -42,6 +42,48 @@ const constraints = `select c.relname,pg_get_constraintdef(k.oid) as definition 
   join pg_class c on c.oid=k.conrelid join pg_namespace n on n.oid=c.relnamespace
   where n.nspname='public' and c.relname not in ('_migrations','_amvera_migrations')
   order by c.relname,definition`;
+
+test("identity guard reads actual role flags and rejects elevated app and direct/indirect migration membership", async () => {
+  const db = await createDb();
+  try {
+    await db.exec('reset role; revoke create on database postgres from public,"incsoulApp"; set role incsoul_migrator');
+    // PGlite is PG18 in a single local database; emulate ONLY the deployment
+    // identity fields. Role flags/memberships/privileges come from real SQL.
+    const client = { query: async (text) => {
+      const result = await db.query(text);
+      return { rows: [{ ...result.rows[0], db:"incsoul_stage", version:170000,
+        login:"incsoul_migrator", owner:"incsoul_migrator" }] };
+    } };
+    const admin = async (sql) => {
+      await db.exec(`reset role; ${sql}; set role incsoul_migrator`);
+    };
+    await inspectIdentity(client);
+    for (const attribute of ["superuser","createdb","createrole","replication","bypassrls"]) {
+      await admin(`alter role "incsoulApp" ${attribute}`);
+      await assert.rejects(inspectIdentity(client),/role isolation check failed/);
+      await admin(`alter role "incsoulApp" no${attribute}`);
+      await inspectIdentity(client);
+    }
+    await admin('grant incsoul_migrator to "incsoulApp"');
+    await assert.rejects(inspectIdentity(client),/role isolation check failed/);
+    await admin('revoke incsoul_migrator from "incsoulApp"');
+    await inspectIdentity(client);
+    // A NOLOGIN group exists only inside this disposable embedded test DB.
+    await admin('create role fixture_migration_group nologin; grant incsoul_migrator to fixture_migration_group; grant fixture_migration_group to "incsoulApp"');
+    await assert.rejects(inspectIdentity(client),/role isolation check failed/);
+    await admin('revoke fixture_migration_group from "incsoulApp"');
+    await inspectIdentity(client);
+    await admin('grant create on schema public to "incsoulApp"');
+    await assert.rejects(inspectIdentity(client),/role isolation check failed/);
+    await admin('revoke create on schema public from "incsoulApp"');
+    await admin('grant create on database postgres to "incsoulApp"');
+    await assert.rejects(inspectIdentity(client),/role isolation check failed/);
+    await admin('revoke create on database postgres from "incsoulApp"');
+    await inspectIdentity(client);
+    await admin('alter role "incsoulApp" rename to incsoulapp');
+    await assert.rejects(inspectIdentity(client)); // Unquoted lowercase is a different role.
+  } finally { await db.close(); }
+});
 
 test("baseline matches legacy column/constraint contract without importing Supabase objects", async () => {
   const fresh = await createDb();
@@ -84,7 +126,7 @@ test("non-owner runtime can use real cart SQL/number trigger and auth FK but can
   const db = await createDb();
   try {
     await applyBaseline(db,await loadPlan());
-    await db.exec("reset role; set session authorization incsoul_app");
+    await db.exec('reset role; set session authorization "incsoulApp"');
     const sql = async (parts,...args) => (await db.query(
       parts.reduce((q,p,i) => q + (i ? "$"+i : "") + p,""),args)).rows;
     const requestId = randomUUID(), stripId = randomUUID();
