@@ -31,7 +31,11 @@ async function start() {
     cwd: root,
     env: { NODE_ENV: "production", HOST: "0.0.0.0", PORT: "3187",
       // Even accidental Vercel runtime flags cannot open portable checkout.
-      VERCEL_ENV: "preview", PRINT_PREVIEW_ACCESS_CODE: "offline-test-code-only" },
+      VERCEL_ENV: "preview", PRINT_PREVIEW_ACCESS_CODE: "offline-test-code-only",
+      // Deliberately invalid stage config: no network connection is possible.
+      // A truthy DATABASE_URL must not enable checkout/auth or PGLite.
+      DATABASE_URL: "postgresql://offline:offline-only@127.0.0.1:1/offline-only",
+      AMVERA_DB_DIAGNOSTICS: "1", AMVERA_DIAGNOSTICS_TOKEN: "offline-diagnostic-token-1234567890123456" },
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stdout.on("data", (data) => { logs += data; });
@@ -72,6 +76,13 @@ try {
   }
   assert.equal((await fetch(origin + "/missing-offline-route")).status, 404);
   assert.equal((await fetch(origin + "/api/auth/get-session")).status, 404);
+  assert.equal((await fetch(origin + "/_internal/db-check", { method: "POST" })).status, 404);
+  assert.equal((await fetch(origin + "/_internal/db-check")).status, 404);
+  const dbCheck = await fetch(origin + "/_internal/db-check", { method: "POST",
+    headers: { authorization: "Bearer offline-diagnostic-token-1234567890123456" } });
+  assert.equal(dbCheck.status, 503);
+  assert.deepEqual(await dbCheck.json(), { ok: false, code: "DB_UNAVAILABLE" });
+  console.log("PASS protected diagnostic, sanitized error, checkout/auth closed with DATABASE_URL set");
   const manifest = await (await fetch(origin + "/__grok/manifest.webmanifest")).json();
   assert.equal(manifest.display, "standalone");
   for (const icon of manifest.icons) {

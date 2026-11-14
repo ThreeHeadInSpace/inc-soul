@@ -97,6 +97,13 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
+    if (import.meta.env.INC_SOUL_NODE_BUILD) {
+      const { amveraPostgres } = await import("./amvera-postgres.server");
+      return toSql(async <T>(text: string, params: unknown[]) => {
+        const result = await amveraPostgres().query(text, params);
+        return result.rows as T[];
+      });
+    }
     const pool = new Pool({ connectionString: databaseUrl });
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
@@ -190,8 +197,9 @@ async function createSql(): Promise<Sql> {
  * Get the shared, **server-only** SQL client. Neon when `DATABASE_URL` is set,
  * otherwise the local PGLite fallback. Memoized — safe to call per request.
  *
- * Schema comes from `migrations/*.sql`, auto-applied before the first query on
- * both backends — define tables there, never inline in server functions.
+ * PGLite applies local migrations. Real PostgreSQL never migrates here:
+ * Amvera schema is managed by the separate, explicitly approved migrator.
+ * Existing Vercel release migrations remain in its build command.
  */
 export function getSql(): Promise<Sql> {
   sqlPromise ??= createSql().catch((err) => {
