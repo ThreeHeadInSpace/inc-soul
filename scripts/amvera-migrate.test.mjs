@@ -3,12 +3,12 @@ import { test } from "node:test";
 import { readFile, readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
-import { loadPlan, applyBaseline, validateTarget, inspectHistory, inspectIdentity } from "./amvera-migrate.mjs";
+import { loadPlan, applyBaseline, validateTarget, inspectHistory, inspectIdentity, parseMigrationArgs } from "./amvera-migrate.mjs";
 import { registerCartPrintOrder } from "../src/lib/free-print-store.server.ts";
 
 const host = "amvera-test-cnpg-incsoul-db-stage-rw";
 const target = { AMVERA_DB_HOST: host,
-  DATABASE_URL: `postgresql://incsoul_migrator:test-only@${host}:5432/incsoul_stage` };
+  DATABASE_URL: `postgresql://incsoul_migrator:test-only@${host}:5432/incsoulStage` };
 
 test("target guard rejects runtime, external, wrong database and connection options", () => {
   assert.ok(validateTarget(target));
@@ -16,11 +16,35 @@ test("target guard rejects runtime, external, wrong database and connection opti
     DATABASE_URL:target.DATABASE_URL.replace(host,"cnpg-incsoul-db-stage-rw") }));
   for (const env of [ {}, { ...target, AMVERA_DB_HOST: "other" },
     ...[target.DATABASE_URL.replace(host,"localhost"),
-      target.DATABASE_URL.replace("incsoul_stage","production"),
+      target.DATABASE_URL.replace("incsoulStage","production"),
+      target.DATABASE_URL.replace("incsoulStage","incsoul_stage"),
+      target.DATABASE_URL.replace("incsoulStage","incsoulstage"),
+      target.DATABASE_URL.replace("incsoulStage","postgres"),
       target.DATABASE_URL.replace("incsoul_migrator","incsoulApp"),
       target.DATABASE_URL + "?options=-csearch_path=other", target.DATABASE_URL.replace("-rw", "-ro")]
       .map((DATABASE_URL) => ({ ...target, DATABASE_URL })) ]) {
     assert.throws(() => validateTarget(env));
+  }
+});
+
+test("confirmation must match the case-sensitive database name before any connection", () => {
+  assert.equal(parseMigrationArgs([]),"--plan");
+  assert.equal(parseMigrationArgs(["--check"]),"--check");
+  assert.equal(parseMigrationArgs(["--apply","--confirm=incsoulStage"]),"--apply");
+  for (const args of [["--apply"], ...["incsoul_stage","incsoulstage","postgres","production"]
+    .map((db) => ["--apply",`--confirm=${db}`])]) {
+    assert.throws(() => parseMigrationArgs(args),/Usage:/);
+  }
+});
+
+test("server identity rejects every other database, including wrong case and the obsolete name", async () => {
+  const state = { db:"incsoulStage", role:"incsoul_migrator", login:"incsoul_migrator",
+    version:170000, elevated:false, app_elevated:false, app_member:false,
+    app_create:false, app_db_create:false, owner:"incsoul_migrator" };
+  const client = (db) => ({ query: async () => ({ rows:[{ ...state,db }] }) });
+  await inspectIdentity(client("incsoulStage"));
+  for (const db of ["incsoul_stage","incsoulstage","postgres","production"]) {
+    await assert.rejects(inspectIdentity(client(db)),/role isolation check failed/);
   }
 });
 
@@ -51,7 +75,7 @@ test("identity guard reads actual role flags and rejects elevated app and direct
     // identity fields. Role flags/memberships/privileges come from real SQL.
     const client = { query: async (text) => {
       const result = await db.query(text);
-      return { rows: [{ ...result.rows[0], db:"incsoul_stage", version:170000,
+      return { rows: [{ ...result.rows[0], db:"incsoulStage", version:170000,
         login:"incsoul_migrator", owner:"incsoul_migrator" }] };
     } };
     const admin = async (sql) => {

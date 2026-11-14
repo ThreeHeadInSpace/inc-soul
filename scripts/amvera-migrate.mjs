@@ -19,11 +19,11 @@ export function validateTarget(env) {
   try { url = new URL(env.DATABASE_URL); } catch { throw new Error("DATABASE_URL is required (not logged)"); }
   if (!["postgres:", "postgresql:"].includes(url.protocol) ||
       !/^(?:amvera-[a-z0-9-]+-)?cnpg-incsoul-db-stage-rw$/.test(url.hostname) ||
-      url.hostname !== env.AMVERA_DB_HOST || url.pathname !== "/incsoul_stage" ||
+      url.hostname !== env.AMVERA_DB_HOST || url.pathname !== "/incsoulStage" ||
       decodeURIComponent(url.username) !== "incsoul_migrator" || !url.password ||
       (url.port && url.port !== "5432") || url.hash ||
       [...url.searchParams.keys()].some((key) => key !== "sslmode")) {
-    throw new Error("Refusing target: require pinned internal stage -rw host, incsoul_stage and incsoul_migrator");
+    throw new Error("Refusing target: require pinned internal stage -rw host, incsoulStage and incsoul_migrator");
   }
   return url.href;
 }
@@ -39,7 +39,7 @@ export async function inspectIdentity(client) {
       has_database_privilege('incsoulApp',current_database(),'CREATE') as app_db_create,
       (select pg_get_userbyid(datdba) from pg_database where datname=current_database()) as owner
   `);
-  if (state.db !== "incsoul_stage" || state.role !== "incsoul_migrator" || state.login !== state.role ||
+  if (state.db !== "incsoulStage" || state.role !== "incsoul_migrator" || state.login !== state.role ||
       state.version < 170000 || state.version >= 180000 || state.elevated !== false ||
       state.app_elevated !== false || state.app_member !== false || state.app_create !== false || state.app_db_create !== false ||
       state.owner !== "incsoul_migrator") {
@@ -96,14 +96,18 @@ export async function applyBaseline(client, plan) {
   }
 }
 
-async function main() {
-  const args = process.argv.slice(2);
+export function parseMigrationArgs(args) {
   const mode = args[0] ?? "--plan";
   if (!["--plan", "--check", "--apply"].includes(mode) ||
-      args.slice(1).some((arg) => arg !== "--confirm=incsoul_stage") ||
-      (mode === "--apply" && !args.includes("--confirm=incsoul_stage"))) {
-    throw new Error("Usage: amvera-migrate.mjs [--plan | --check | --apply --confirm=incsoul_stage]");
+      args.slice(1).some((arg) => arg !== "--confirm=incsoulStage") ||
+      (mode === "--apply" && !args.includes("--confirm=incsoulStage"))) {
+    throw new Error("Usage: amvera-migrate.mjs [--plan | --check | --apply --confirm=incsoulStage]");
   }
+  return mode;
+}
+
+async function main() {
+  const mode = parseMigrationArgs(process.argv.slice(2));
   const plan = await loadPlan();
   if (mode === "--plan") {
     console.log(`Offline plan: ${plan.name}; SHA256 ${plan.sha256}; ${tables.length} app tables + _amvera_migrations`);
