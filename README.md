@@ -1,5 +1,9 @@
 # inc&soul
 
+Эта ветка `amvera-migrate-stage` предназначена только для временного приложения
+`incsoul-migrate`: [порядок запуска и остановки](docs/amvera-migrate-stage-runbook.md).
+Работающий сайт остаётся на `pre-prod`. По умолчанию мигратор выполняет только `--plan`.
+
 Самостоятельная Node.js 24 / Docker-сборка для Amvera: [настройка incsoul-stage](docs/amvera-deploy.md), [отчёт этапа 1](docs/amvera-stage-1.md).
 
 Чистая PostgreSQL для Amvera: [схема, роли и однократные миграции](docs/amvera-postgres-stage.md).

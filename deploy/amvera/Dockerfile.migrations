@@ -6,4 +6,6 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 COPY scripts/amvera-migrate.mjs ./scripts/amvera-migrate.mjs
 COPY migrations/amvera ./migrations/amvera
 USER node
+# Offline build smoke: verifies pg import and baseline availability, no DB access.
+RUN node scripts/amvera-migrate.mjs --plan
 CMD ["node", "scripts/amvera-migrate.mjs", "--plan"]

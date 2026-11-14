@@ -1,8 +1,10 @@
+# Migration-only branch amvera-migrate-stage; the website stays on pre-prod.
 meta:
   environment: docker
   toolchain:
     name: docker
 build:
-  dockerfile: Dockerfile
+  dockerfile: deploy/amvera/Dockerfile.migrations
 run:
-  containerPort: 3000
+  command: node
+  args: scripts/amvera-migrate.mjs --plan
