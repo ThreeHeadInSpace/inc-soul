@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import { amveraEnvironment } from "./amvera-environment.mjs";
 
 export const migrationName = "0001_baseline.sql";
 export const tables = ["account", "order_seq", "print_order_items", "print_order_limits",
@@ -15,20 +16,23 @@ export async function loadPlan() {
 }
 
 export function validateTarget(env) {
+  const profile = amveraEnvironment(env);
   let url;
   try { url = new URL(env.DATABASE_URL); } catch { throw new Error("DATABASE_URL is required (not logged)"); }
   if (!["postgres:", "postgresql:"].includes(url.protocol) ||
-      !/^(?:amvera-[a-z0-9-]+-)?cnpg-incsoul-db-stage-rw$/.test(url.hostname) ||
-      url.hostname !== env.AMVERA_DB_HOST || url.pathname !== "/incsoulStage" ||
+      !(url.hostname === profile.host || (profile.name === "staging" &&
+        /^amvera-[a-z0-9-]+-cnpg-incsoul-db-stage-rw$/.test(url.hostname))) ||
+      url.hostname !== env.AMVERA_DB_HOST || url.pathname !== `/${profile.database}` ||
       decodeURIComponent(url.username) !== "incsoul_migrator" || !url.password ||
       (url.port && url.port !== "5432") || url.hash ||
       [...url.searchParams.keys()].some((key) => key !== "sslmode")) {
-    throw new Error("Refusing target: require pinned internal stage -rw host, incsoulStage and incsoul_migrator");
+    throw new Error("Refusing target: require matching environment, pinned internal -rw host, database and incsoul_migrator");
   }
   return url.href;
 }
 
-export async function inspectIdentity(client) {
+export async function inspectIdentity(client, env = {}) {
+  const profile = amveraEnvironment(env);
   const { rows: [state] } = await client.query(`
     select current_database() as db, current_user as role, session_user as login,
       current_setting('server_version_num')::int as version,
@@ -39,7 +43,7 @@ export async function inspectIdentity(client) {
       has_database_privilege('incsoulApp',current_database(),'CREATE') as app_db_create,
       (select pg_get_userbyid(datdba) from pg_database where datname=current_database()) as owner
   `);
-  if (state.db !== "incsoulStage" || state.role !== "incsoul_migrator" || state.login !== state.role ||
+  if (state.db !== profile.database || state.role !== "incsoul_migrator" || state.login !== state.role ||
       state.version < 170000 || state.version >= 180000 || state.elevated !== false ||
       state.app_elevated !== false || state.app_member !== false || state.app_create !== false || state.app_db_create !== false ||
       state.owner !== "incsoul_migrator") {
@@ -96,33 +100,38 @@ export async function applyBaseline(client, plan) {
   }
 }
 
-export function parseMigrationArgs(args) {
+export function parseMigrationArgs(args, env = {}) {
+  const profile = amveraEnvironment(env);
+  const confirmation = `--confirm=${profile.database}`;
   const mode = args[0] ?? "--plan";
   if (!["--plan", "--check", "--apply"].includes(mode) ||
-      args.slice(1).some((arg) => arg !== "--confirm=incsoulStage") ||
-      (mode === "--apply" && !args.includes("--confirm=incsoulStage"))) {
-    throw new Error("Usage: amvera-migrate.mjs [--plan | --check | --apply --confirm=incsoulStage]");
+      args.slice(1).some((arg) => arg !== confirmation) ||
+      (mode === "--apply" && !args.includes(confirmation))) {
+    throw new Error(`Usage: amvera-migrate.mjs [--plan | --check | --apply ${confirmation}]`);
   }
   return mode;
 }
 
 async function main() {
-  const mode = parseMigrationArgs(process.argv.slice(2));
+  const profile = amveraEnvironment(process.env);
+  const mode = parseMigrationArgs(process.argv.slice(2), process.env);
   const plan = await loadPlan();
   if (mode === "--plan") {
+    console.log(`Environment: ${profile.name}`);
     console.log(`Offline plan: ${plan.name}; SHA256 ${plan.sha256}; ${tables.length} app tables + _amvera_migrations`);
     return;
   }
   const connectionString = validateTarget(process.env);
   const client = new pg.Client({ connectionString, connectionTimeoutMillis: 10000,
-    query_timeout: 70000, application_name: "incsoul-stage-schema-migration" });
+    query_timeout: 70000, application_name: `${profile.app}-schema-migration` });
   try {
     await client.connect();
-    await inspectIdentity(client);
+    await inspectIdentity(client, process.env);
     if (mode === "--check") {
       await client.query("BEGIN READ ONLY");
       try {
-        console.log(await inspectHistory(client, plan) ? "Baseline already applied; checksum verified" : "Empty stage database ready for baseline");
+        console.log(await inspectHistory(client, plan) ? "Baseline already applied; checksum verified" :
+          profile.name === "production" ? "Empty production database ready for baseline" : "Empty stage database ready for baseline");
       } finally { await client.query("ROLLBACK"); }
     } else {
       console.log(await applyBaseline(client, plan));

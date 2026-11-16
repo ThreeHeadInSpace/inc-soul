@@ -26,10 +26,12 @@ assert.equal(await new Promise((resolve) => probe.once("exit", resolve)), 0);
 const origin = "http://127.0.0.1:3187";
 let child;
 let logs = "";
+let deployment = "staging";
 async function start() {
   child = spawn(process.execPath, ["server/index.mjs"], {
     cwd: root,
     env: { NODE_ENV: "production", HOST: "0.0.0.0", PORT: "3187",
+      AMVERA_ENV: deployment, AMVERA_APP_NAME: deployment === "production" ? "incsoul-prod" : "incsoul-stage",
       // Even accidental Vercel runtime flags cannot open portable checkout.
       VERCEL_ENV: "preview", PRINT_PREVIEW_ACCESS_CODE: "offline-test-code-only",
       // Deliberately invalid stage config: no network connection is possible.
@@ -124,10 +126,16 @@ try {
     } finally { await browser.close(); }
   }
   await stop();
+  deployment = "production";
   await start();
   assert.equal((await fetch(origin + "/booth")).status, 200);
+  assert.equal((await fetch(origin + "/api/auth/get-session")).status, 404);
+  const prodAvailability = await fetch(origin + "/_serverFn/" + id, {
+    headers: { "x-tsr-serverFn": "true", "sec-fetch-site": "same-origin", origin },
+  });
+  assert.equal(fromCrossJSON(await prodAvailability.json(), { refs: new Map() }).result, false);
   assert.doesNotMatch(logs, /PGLite bootstrap|ECONNREFUSED|SMTP/i);
-  console.log("PASS process stop/restart and booth after restart");
+  console.log("PASS same artifact in production mode: booth/auth/checkout guards; stop/restart");
 } finally {
   await stop();
   await rm(root, { recursive: true, force: true });

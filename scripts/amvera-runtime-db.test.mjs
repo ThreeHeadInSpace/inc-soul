@@ -6,7 +6,7 @@ import { createAmveraPostgres, runtimePoolConfig, handleDbDiagnostic } from "../
 const env = { DATABASE_URL:"postgresql://incsoulApp:test-only@cnpg-incsoul-db-stage-rw:5432/incsoulStage",
   AMVERA_DB_DIAGNOSTICS:"1", AMVERA_DIAGNOSTICS_TOKEN:"local-test-token-12345678901234567890" };
 const identity = { db:"incsoulStage",role:"incsoulApp",login:"incsoulApp",version:170000,elevated:false };
-function fixture({ row = identity, connectError = false, tableError = false, rollbackError = false } = {}) {
+function fixture({ row = identity, connectError = false, tableError = false, rollbackError = false, settings = env } = {}) {
   const calls = [];
   let created = 0, ended = 0;
   const client = {
@@ -25,7 +25,7 @@ function fixture({ row = identity, connectError = false, tableError = false, rol
     async query() { throw new Error(env.DATABASE_URL); },
     async end() { ended++; },
   };
-  const runtime = createAmveraPostgres((config) => { created++; assert.equal(config.max,4); return pool; },env);
+  const runtime = createAmveraPostgres((config) => { created++; assert.equal(config.max,4); return pool; },settings);
   return { runtime,calls, counts:() => ({created,ended}), error:() => onError };
 }
 
@@ -37,6 +37,30 @@ test("Amvera config pins runtime identity, bounds pool/timeouts and never accept
     env.DATABASE_URL.replace("incsoulApp","incsoul_migrator"),env.DATABASE_URL.replace("incsoulStage","other"),
     env.DATABASE_URL.replace("cnpg-incsoul-db-stage-rw","example.test"),env.DATABASE_URL+"?options=-cfoo=bar"]) {
     assert.throws(() => runtimePoolConfig({DATABASE_URL}),/configuration is invalid/);
+  }
+});
+
+test("independent production config works; mixed environment/host/database fails before creating a pool", async () => {
+  const prod = { ...env, AMVERA_ENV:"production", AMVERA_APP_NAME:"incsoul-prod",
+    DATABASE_URL:env.DATABASE_URL.replace("db-stage","db-prod").replace("incsoulStage","incsoulProd") };
+  assert.equal(runtimePoolConfig(prod).application_name,"incsoul-prod");
+  assert.equal(runtimePoolConfig({...env,AMVERA_ENV:"staging",AMVERA_APP_NAME:"incsoul-stage"}).application_name,"incsoul-stage");
+  const success=fixture({settings:prod,row:{...identity,db:"incsoulProd"}});
+  assert.deepEqual(await success.runtime.diagnose(),{ok:true,code:"DB_READY"});
+  await success.runtime.close();
+  const wrongIdentity=fixture({settings:prod});
+  assert.deepEqual(await wrongIdentity.runtime.diagnose(),{ok:false,code:"DB_IDENTITY_MISMATCH"});
+  await wrongIdentity.runtime.close();
+  for (const settings of [{...env,DATABASE_URL:prod.DATABASE_URL}, {...prod,DATABASE_URL:env.DATABASE_URL},
+    {...prod,AMVERA_APP_NAME:undefined}, {...prod,AMVERA_APP_NAME:"incsoul-stage"},
+    {...env,AMVERA_APP_NAME:"incsoul-prod"}, {...prod,AMVERA_ENV:undefined},
+    {...env,AMVERA_ENV:"invalid"},
+    {...prod,DATABASE_URL:prod.DATABASE_URL.replace("incsoulProd","incsoulStage")},
+    {...env,DATABASE_URL:env.DATABASE_URL.replace("db-stage","db-prod")}]) {
+    const f=fixture({settings});
+    assert.equal((await f.runtime.diagnose()).ok,false);
+    assert.equal(f.counts().created,0);
+    await f.runtime.close();
   }
 });
 

@@ -1,5 +1,7 @@
 # inc&soul
 
+Два окружения Amvera и ручной выпуск production: [настройка и порядок выпуска](docs/amvera-environments.md).
+
 Подключение тестового сайта к PostgreSQL Amvera: [runtime и закрытая диагностика](docs/amvera-runtime-db.md).
 
 Самостоятельная Node.js 24 / Docker-сборка для Amvera: [настройка incsoul-stage](docs/amvera-deploy.md), [отчёт этапа 1](docs/amvera-stage-1.md).

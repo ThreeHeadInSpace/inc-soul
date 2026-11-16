@@ -37,6 +37,24 @@ test("confirmation must match the case-sensitive database name before any connec
   }
 });
 
+test("production migrator is explicit, pins its own DB and rejects stage confirmations/identity", async () => {
+  const prod={AMVERA_ENV:"production",AMVERA_APP_NAME:"incsoul-prod",AMVERA_DB_HOST:"cnpg-incsoul-db-prod-rw",
+    DATABASE_URL:"postgresql://incsoul_migrator:test-only@cnpg-incsoul-db-prod-rw:5432/incsoulProd"};
+  assert.ok(validateTarget(prod));
+  assert.equal(parseMigrationArgs(["--apply","--confirm=incsoulProd"],prod),"--apply");
+  assert.throws(() => parseMigrationArgs(["--apply","--confirm=incsoulStage"],prod));
+  assert.throws(() => parseMigrationArgs(["--apply","--confirm=incsoulProd"]));
+  for (const settings of [{...target,DATABASE_URL:prod.DATABASE_URL}, {...prod,DATABASE_URL:target.DATABASE_URL},
+    {...prod,AMVERA_APP_NAME:"incsoul-stage"},{...prod,AMVERA_ENV:undefined},
+    {...prod,AMVERA_DB_HOST:target.AMVERA_DB_HOST}]) assert.throws(() => validateTarget(settings));
+  const state={db:"incsoulProd",role:"incsoul_migrator",login:"incsoul_migrator",version:170000,
+    elevated:false,app_elevated:false,app_member:false,app_create:false,app_db_create:false,owner:"incsoul_migrator"};
+  const client=(db) => ({query:async () => ({rows:[{...state,db}]})});
+  await inspectIdentity(client("incsoulProd"),prod);
+  await assert.rejects(inspectIdentity(client("incsoulStage"),prod));
+  await assert.rejects(inspectIdentity(client("incsoulProd")));
+});
+
 test("server identity rejects every other database, including wrong case and the obsolete name", async () => {
   const state = { db:"incsoulStage", role:"incsoul_migrator", login:"incsoul_migrator",
     version:170000, elevated:false, app_elevated:false, app_member:false,

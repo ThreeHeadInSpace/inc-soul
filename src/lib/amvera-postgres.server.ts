@@ -1,14 +1,16 @@
 import { Pool, type PoolConfig } from "pg";
 import { timingSafeEqual } from "node:crypto";
+import { amveraEnvironment } from "../../scripts/amvera-environment.mjs";
 
 const tableNames = ["user", "session", "account", "verification", "strips", "order_seq",
   "print_orders", "print_order_items", "print_uploads", "print_order_limits"];
 
 export function runtimePoolConfig(env: NodeJS.ProcessEnv): PoolConfig {
+  const profile = amveraEnvironment(env);
   let url: URL;
   try { url = new URL(env.DATABASE_URL ?? ""); } catch { throw new Error("PostgreSQL configuration is invalid"); }
   if (!["postgres:", "postgresql:"].includes(url.protocol) ||
-      url.hostname !== "cnpg-incsoul-db-stage-rw" || url.pathname !== "/incsoulStage" ||
+      url.hostname !== profile.host || url.pathname !== `/${profile.database}` ||
       decodeURIComponent(url.username) !== "incsoulApp" || !url.password ||
       (url.port && url.port !== "5432") || url.hash ||
       [...url.searchParams.keys()].some((key) => key !== "sslmode")) {
@@ -16,7 +18,7 @@ export function runtimePoolConfig(env: NodeJS.ProcessEnv): PoolConfig {
   }
   return { connectionString: url.href, max: 4, connectionTimeoutMillis: 3000,
     idleTimeoutMillis: 10000, statement_timeout: 3000, query_timeout: 5000,
-    idle_in_transaction_session_timeout: 5000, application_name: "incsoul-stage" };
+    idle_in_transaction_session_timeout: 5000, application_name: profile.app };
 }
 
 export function createAmveraPostgres(
@@ -45,13 +47,14 @@ export function createAmveraPostgres(
       let failed = false;
       let code = "DB_UNAVAILABLE";
       try {
+        const profile = amveraEnvironment(env);
         client = await getPool().connect();
         await client.query("BEGIN READ ONLY");
         const { rows: [identity] } = await client.query(`select current_database() as db,
           current_user as role, session_user as login, current_setting('server_version_num')::int as version,
           (select rolsuper or rolcreatedb or rolcreaterole or rolreplication or rolbypassrls
            from pg_roles where rolname=current_user) as elevated`);
-        if (identity?.db !== "incsoulStage" || identity.role !== "incsoulApp" ||
+        if (identity?.db !== profile.database || identity.role !== "incsoulApp" ||
             identity.login !== "incsoulApp" || identity.version < 170000 || identity.version >= 180000 ||
             identity.elevated !== false) return { ok: false, code: "DB_IDENTITY_MISMATCH" };
         code = "DB_SCHEMA_UNAVAILABLE";
