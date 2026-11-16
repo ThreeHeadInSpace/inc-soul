@@ -1,5 +1,9 @@
 # inc&soul
 
+Временная ветка `codex/amvera-prod-migrate` — только для `incsoul-migrate-prod`.
+Не подключать сайт к этой ветке. Начальный режим — offline `--plan`;
+production-профиль и секреты настраиваются отдельно в Amvera.
+
 Два окружения Amvera и ручной выпуск production: [настройка и порядок выпуска](docs/amvera-environments.md).
 
 Подключение тестового сайта к PostgreSQL Amvera: [runtime и закрытая диагностика](docs/amvera-runtime-db.md).
